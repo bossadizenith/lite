@@ -1,4 +1,4 @@
-import "./utils/load-env";
+import "./utils/load-env.js";
 import { handle } from "hono/vercel";
 import { Hono } from "hono";
 
