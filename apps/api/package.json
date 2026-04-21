@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "srvx"
+    "dev": "srvx --port 5000"
   },
   "dependencies": {
     "hono": "^4.8.10"
