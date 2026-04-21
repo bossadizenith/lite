@@ -6,8 +6,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const rootEnvPath = resolve(__dirname, "../../../../.env");
 
-const result = config({ path: rootEnvPath });
+if (process.env.NODE_ENV !== "production") {
+  const result = config({ path: rootEnvPath });
 
-if (result.error) {
-  throw new Error(`[API] Failed to load .env from ${rootEnvPath}: ${result.error.message}`);
+  if (result.error) {
+    console.warn(`[API] Optional .env not found at ${rootEnvPath}: ${result.error.message}`);
+  }
 }
