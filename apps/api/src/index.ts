@@ -1,4 +1,4 @@
-import "./utils/load-env.ts";
+import "./utils/load-env";
 import { Hono } from "hono";
 
 const app = new Hono();
