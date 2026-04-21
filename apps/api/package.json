@@ -6,6 +6,7 @@
     "dev": "srvx --port 5000"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "hono": "^4.8.10"
   },
   "devDependencies": {
