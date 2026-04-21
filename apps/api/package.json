@@ -1,11 +1,11 @@
 {
   "name": "@lite/api",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/app.js",
   "scripts": {
     "build": "tsup",
     "dev": "srvx src/app.ts --port 5000 --import jiti/register",
-    "start": "node dist/index.js"
+    "start": "node dist/app.js"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.0",
