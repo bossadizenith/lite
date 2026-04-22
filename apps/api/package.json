@@ -3,20 +3,23 @@
   "type": "module",
   "main": "./dist/app.js",
   "scripts": {
-    "build": "tsup",
+    "build": "tsdown",
     "dev": "srvx src/app.ts --port 5000 --import jiti/register",
     "start": "node dist/app.js"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.0",
+    "@lite/db": "workspace:*",
+    "@lite/env": "workspace:*",
     "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.8.10"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
     "jiti": "^2.6.1",
     "srvx": "^0.8.7",
-    "tsup": "^8.5.1",
+    "tsdown": "^0.21.9",
     "typescript": "^5.8.3"
   }
 }
