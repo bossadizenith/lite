@@ -5,10 +5,10 @@
   "private": true,
   "scripts": {
     "build": "tsdown src/index.ts src/schema.ts src/types.ts --format esm,cjs --dts -d dist --tsconfig tsconfig.build.json",
-    "db:generate": "tsx node_modules/drizzle-kit/bin.cjs generate",
-    "db:migrate": "tsx node_modules/drizzle-kit/bin.cjs migrate",
-    "db:push": "tsx node_modules/drizzle-kit/bin.cjs push",
-    "db:studio": "tsx node_modules/drizzle-kit/bin.cjs studio"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "exports": {
     ".": {
