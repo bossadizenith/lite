@@ -5,14 +5,28 @@
   "private": true,
   "exports": {
     "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js",
-      "default": "./dist/client.js"
+      "types": "./dist/client.d.mts",
+      "import": "./dist/client.mjs",
+      "require": "./dist/client.cjs",
+      "default": "./dist/client.mjs"
+    },
+    "./client.js": {
+      "types": "./dist/client.d.mts",
+      "import": "./dist/client.mjs",
+      "require": "./dist/client.cjs",
+      "default": "./dist/client.mjs"
     },
     "./server": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.js",
-      "default": "./dist/server.js"
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs",
+      "require": "./dist/server.cjs",
+      "default": "./dist/server.mjs"
+    },
+    "./server.js": {
+      "types": "./dist/server.d.mts",
+      "import": "./dist/server.mjs",
+      "require": "./dist/server.cjs",
+      "default": "./dist/server.mjs"
     }
   },
   "typesVersions": {
