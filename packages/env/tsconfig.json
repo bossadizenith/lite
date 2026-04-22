@@ -1,0 +1,3 @@
+{
+  "extends": "@book-live/typescript-config/base"
+}

@@ -1,0 +1,3 @@
+{
+  "extends": "@lite/typescript-config/base"
+}
