@@ -3,7 +3,7 @@ import { drizzle as drizzlePostgresJS } from "drizzle-orm/postgres-js";
 
 import { Pool } from "pg";
 import schema from "./schema.js";
-import { env } from "@lite/env/server";
+import { env } from "@lite/env/server.js";
 
 type DrizzlePostgresInstance<S extends Record<string, unknown>> =
   | ReturnType<typeof drizzle<S>>
