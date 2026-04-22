@@ -1,9 +1,9 @@
+import "./utils/load-env.js";
 import { db } from "@lite/db";
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
 import { routes } from "./routes/index.js";
 import type { ReqVariables } from "./utils/hono.js";
-import "./utils/load-env.js";
 import { cors } from "hono/cors";
 import { env } from "@lite/env/server.js";
 
