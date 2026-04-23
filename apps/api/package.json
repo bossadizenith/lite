@@ -8,12 +8,16 @@
     "start": "node dist/app.js"
   },
   "dependencies": {
+    "@aws-sdk/client-ecs": "^3.1035.0",
     "@hono/node-server": "^2.0.0",
     "@lite/db": "workspace:*",
     "@lite/env": "workspace:*",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.8.10"
+    "hono": "^4.8.10",
+    "nanoid": "^5.1.9",
+    "random-word-slugs": "^0.1.7",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
