@@ -10,7 +10,16 @@
     "NEXT_PUBLIC_BACKEND_URL",
     "NEXT_PUBLIC_FRONTEND_URL",
 
-    "TRUSTED_ORIGINS"
+    "TRUSTED_ORIGINS",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_REGION",
+    "ECS_CLUSTER_ARN",
+    "ECS_TASK_DEFINITION_ARN",
+    "SUBNET_1",
+    "SUBNET_2",
+    "SUBNET_3",
+    "SECURITY_GROUP"
   ],
   "tasks": {
     "build": {
