@@ -78,8 +78,11 @@ projectsRouter.post("/", async (c) => {
         {
           name: "builder-image",
           environment: [
-            { name: "GIT_REPOSITORY__URL", value: repoUrl },
+            { name: "GIT_REPOSITORY_URL", value: repoUrl },
             { name: "PROJECT_ID", value: finalSlug },
+            { name: "AWS_ACCESS_KEY_ID", value: env.AWS_ACCESS_KEY_ID },
+            { name: "AWS_SECRET_ACCESS_KEY", value: env.AWS_SECRET_ACCESS_KEY },
+            { name: "AWS_REGION", value: env.AWS_REGION },
           ],
         },
       ],
