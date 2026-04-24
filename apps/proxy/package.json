@@ -1,5 +1,5 @@
 {
-  "name": "@lite/api",
+  "name": "@lite/proxy",
   "type": "module",
   "main": "./dist/app.js",
   "scripts": {

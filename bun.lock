@@ -38,6 +38,28 @@
         "typescript": "^5.8.3",
       },
     },
+    "apps/proxy": {
+      "name": "@lite/proxy",
+      "dependencies": {
+        "@aws-sdk/client-ecs": "^3.1035.0",
+        "@hono/node-server": "^2.0.0",
+        "@lite/db": "workspace:*",
+        "@lite/env": "workspace:*",
+        "dotenv": "^17.4.2",
+        "drizzle-orm": "^0.45.2",
+        "hono": "^4.8.10",
+        "nanoid": "^5.1.9",
+        "random-word-slugs": "^0.1.7",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "@types/node": "^20.11.17",
+        "jiti": "^2.6.1",
+        "srvx": "^0.8.7",
+        "tsdown": "^0.21.9",
+        "typescript": "^5.8.3",
+      },
+    },
     "apps/web": {
       "name": "web",
       "version": "0.1.0",
@@ -364,6 +386,8 @@
     "@lite/env": ["@lite/env@workspace:packages/env"],
 
     "@lite/eslint-config": ["@lite/eslint-config@workspace:packages/eslint-config"],
+
+    "@lite/proxy": ["@lite/proxy@workspace:apps/proxy"],
 
     "@lite/typescript-config": ["@lite/typescript-config@workspace:packages/typescript-config"],
 

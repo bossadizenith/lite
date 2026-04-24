@@ -23,6 +23,7 @@ export const projects = pgTable("projects", {
 export const deployments = pgTable("deployments", {
   id: varchar("id", { length: 255 }).primaryKey(),
   projectId: varchar("project_id", { length: 255 }).notNull(),
+  // domain: varchar("domain", { length: 255 }).notNull().default(""),
   status: deploymentStatusEnum("status").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
