@@ -25,11 +25,9 @@ app.all("*", async (c) => {
 
   const slug = hostname.split(".")[0];
 
-  let project = await db.query.projects.findFirst({
+  const project = await db.query.projects.findFirst({
     where: eq(projects.slug, slug),
   });
-
-  console.log({ project });
 
   if (!project) {
     return c.text("Project not found", 404);
