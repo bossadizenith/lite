@@ -1,63 +1,80 @@
+import "./utils/load-env.js";
+
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { db } from "@lite/db";
 import { projects } from "@lite/db/schema.js";
-import { env } from "@lite/env/server.js";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
-import "./utils/load-env.js";
+import { env } from "@lite/env/server.js";
 
 const app = new Hono();
 
-const BASE_PATH = env.AWS_BUCKET_URL;
+const s3 = new S3Client({
+  region: env.AWS_REGION,
+  credentials: {
+    accessKeyId: env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
 app.all("*", async (c) => {
   const host = c.req.header("host") || "";
   const hostname = host.split(":")[0];
   const url = new URL(c.req.url);
 
-  // 1. Try finding by custom domain
   let project = await db.query.projects.findFirst({
-    where: eq(projects.customDomain, hostname),
+    where: eq(projects.id, hostname),
   });
-
-  // 2. Try finding by subdomain if not found
-  if (!project) {
-    const subdomain = hostname.split(".")[0];
-    project = await db.query.projects.findFirst({
-      where: eq(projects.subDomain, subdomain),
-    });
-  }
 
   if (!project) {
     return c.text("Project not found", 404);
   }
+
+  console.log(project);
 
   let pathname = url.pathname;
   if (pathname === "/") {
     pathname = "/index.html";
   }
 
-  const target = `${BASE_PATH}${project.id}${pathname}`;
+  const key = `__outputs/${project.id}${pathname}`;
 
   try {
-    const res = await fetch(target);
+    const res = await s3.send(
+      new GetObjectCommand({
+        Bucket: "vercel-lite-clone",
+        Key: key,
+      }),
+    );
 
-    if (!res.ok) throw new Error("Not found");
-
-    return new Response(res.body, {
+    return new Response(res.Body as any, {
       headers: {
-        "Content-Type": res.headers.get("content-type") || "text/html",
+        "Content-Type": res.ContentType || "text/html",
         "Cache-Control": "public, max-age=31536000",
       },
     });
-  } catch (err) {
-    const fallback = await fetch(`${BASE_PATH}${project.id}/index.html`);
-
-    return new Response(fallback.body, {
-      headers: {
-        "Content-Type": "text/html",
-      },
-    });
+  } catch (err: any) {
+    if (err.name === "NoSuchKey" && !pathname.includes(".")) {
+      try {
+        const fallback = await s3.send(
+          new GetObjectCommand({
+            Bucket: "vercel-lite-clone",
+            Key: `__outputs/${project.id}/index.html`,
+          }),
+        );
+        return new Response(fallback.Body as any, {
+          headers: {
+            "Content-Type": "text/html",
+            "Cache-Control": "no-cache",
+          },
+        });
+      } catch (fallbackErr) {
+        return c.text("Not found", 404);
+      }
+    }
+    console.error(`Proxy error for ${key}:`, err);
+    return c.text("Not found", 404);
   }
 });
 
