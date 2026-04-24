@@ -56,7 +56,7 @@ projectsRouter.post("/", async (c) => {
       slug: finalSlug,
       buildCommand: "npm run build",
       name,
-      subDomain: `${finalSlug}.localhost`,
+      subDomain: finalSlug,
       customDomain: "",
     })
     .returning();
