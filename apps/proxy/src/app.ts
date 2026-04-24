@@ -12,16 +12,24 @@ const BASE_PATH = env.AWS_BUCKET_URL;
 
 app.all("*", async (c) => {
   const host = c.req.header("host") || "";
+  const hostname = host.split(":")[0];
   const url = new URL(c.req.url);
 
-  const subdomain = host.split(".")[0];
-
-  const project = await db.query.projects.findFirst({
-    where: eq(projects.subDomain, subdomain),
+  // 1. Try finding by custom domain
+  let project = await db.query.projects.findFirst({
+    where: eq(projects.customDomain, hostname),
   });
 
+  // 2. Try finding by subdomain if not found
   if (!project) {
-    return c.text("Not found", 404);
+    const subdomain = hostname.split(".")[0];
+    project = await db.query.projects.findFirst({
+      where: eq(projects.subDomain, subdomain),
+    });
+  }
+
+  if (!project) {
+    return c.text("Project not found", 404);
   }
 
   let pathname = url.pathname;
@@ -29,7 +37,7 @@ app.all("*", async (c) => {
     pathname = "/index.html";
   }
 
-  const target = `${BASE_PATH}/${subdomain}${pathname}`;
+  const target = `${BASE_PATH}${project.id}${pathname}`;
 
   try {
     const res = await fetch(target);
@@ -43,8 +51,7 @@ app.all("*", async (c) => {
       },
     });
   } catch (err) {
-    // SPA fallback
-    const fallback = await fetch(`${BASE_PATH}/${subdomain}/index.html`);
+    const fallback = await fetch(`${BASE_PATH}${project.id}/index.html`);
 
     return new Response(fallback.body, {
       headers: {

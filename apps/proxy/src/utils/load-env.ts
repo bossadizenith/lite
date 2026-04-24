@@ -10,6 +10,8 @@ if (process.env.NODE_ENV !== "production") {
   const result = config({ path: rootEnvPath });
 
   if (result.error) {
-    console.warn(`[Proxy] Optional .env not found at ${rootEnvPath}: ${result.error.message}`);
+    console.warn(
+      `[Proxy] Optional .env not found at ${rootEnvPath}: ${result.error.message}`,
+    );
   }
 }
