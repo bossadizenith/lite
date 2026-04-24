@@ -24,21 +24,21 @@ app.all("*", async (c) => {
   const url = new URL(c.req.url);
 
   let project = await db.query.projects.findFirst({
-    where: eq(projects.id, hostname),
+    where: eq(projects.subDomain, hostname),
   });
 
   if (!project) {
     return c.text("Project not found", 404);
   }
 
-  console.log(project);
-
   let pathname = url.pathname;
   if (pathname === "/") {
     pathname = "/index.html";
   }
 
-  const key = `__outputs/${project.id}${pathname}`;
+  const key = `__outputs/${project.slug}${pathname}`;
+
+  console.log(key);
 
   try {
     const res = await s3.send(

@@ -56,7 +56,7 @@ projectsRouter.post("/", async (c) => {
       slug: finalSlug,
       buildCommand: "npm run build",
       name,
-      subDomain: finalSlug,
+      subDomain: `${finalSlug}.localhost`,
       customDomain: "",
     })
     .returning();
@@ -79,7 +79,7 @@ projectsRouter.post("/", async (c) => {
           name: "builder-image",
           environment: [
             { name: "GIT_REPOSITORY_URL", value: repoUrl },
-            { name: "PROJECT_ID", value: id },
+            { name: "PROJECT_ID", value: finalSlug },
             { name: "AWS_ACCESS_KEY_ID", value: env.AWS_ACCESS_KEY_ID },
             { name: "AWS_SECRET_ACCESS_KEY", value: env.AWS_SECRET_ACCESS_KEY },
             { name: "AWS_REGION", value: env.AWS_REGION },
