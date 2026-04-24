@@ -1,10 +1,10 @@
-import "./utils/load-env.js";
-import { Hono } from "hono";
-import { handle } from "hono/vercel";
 import { db } from "@lite/db";
-import { deployments, projects } from "@lite/db/schema.js";
+import { projects } from "@lite/db/schema.js";
 import { env } from "@lite/env/server.js";
 import { eq } from "drizzle-orm";
+import { Hono } from "hono";
+import { handle } from "hono/vercel";
+import "./utils/load-env.js";
 
 const app = new Hono();
 
