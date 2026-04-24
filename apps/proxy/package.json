@@ -4,7 +4,7 @@
   "main": "./dist/app.js",
   "scripts": {
     "build": "tsdown",
-    "dev": "srvx src/app.ts --port 5000 --import jiti/register",
+    "dev": "srvx src/app.ts --port 8000 --import jiti/register",
     "start": "node dist/app.js"
   },
   "dependencies": {
