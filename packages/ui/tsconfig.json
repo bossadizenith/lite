@@ -1,8 +1,12 @@
 {
-  "extends": "@lite/typescript-config/react-library.json",
+  "extends": "@lite/typescript-config/react-library",
   "compilerOptions": {
     "outDir": "dist",
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "baseUrl": ".",
+    "paths": {
+      "@lite/ui/*": ["./src/*"]
+    }
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

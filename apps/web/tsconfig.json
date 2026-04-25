@@ -1,6 +1,10 @@
 {
   "extends": "@lite/typescript-config/next",
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@lite/ui/*": ["../../packages/ui/src/*"]
+    },
     "plugins": [
       {
         "name": "next"
