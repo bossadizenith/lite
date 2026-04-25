@@ -16,5 +16,8 @@
     "hooks": "@lite/ui/hooks",
     "lib": "@lite/ui/lib",
     "ui": "@lite/ui/components"
-  }
+  },
+  "menuColor": "default",
+  "menuAccent": "subtle",
+  "rtl": false
 }
