@@ -30,7 +30,7 @@ export const Create = () => {
   });
 
   const handleCreateProject = (data: CreateProjectSchema) => {
-    createProject(data.repoUrl);
+    createProject(data);
   };
 
   return (

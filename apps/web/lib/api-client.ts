@@ -1,6 +1,6 @@
 import { env } from "@lite/env/client";
 
-const API_BASE_URL = env.NEXT_PUBLIC_BACKEND_URL;
+const API_BASE_URL = `${env.NEXT_PUBLIC_BACKEND_URL}/api`;
 
 export class ApiError extends Error {
   status: number;
@@ -31,7 +31,7 @@ type ApiMethodOptions<TBody> = ApiRequestOptions & {
 function buildUrl(path: string, params?: QueryParams): string {
   const base = path.startsWith("http")
     ? new URL(path)
-    : new URL(path, API_BASE_URL);
+    : new URL(path.replace(/^\/+/, ""), `${API_BASE_URL}/`);
 
   if (!params) return base.toString();
 
