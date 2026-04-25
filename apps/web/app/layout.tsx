@@ -1,10 +1,12 @@
-import type { Metadata } from "next";
-import localFont from "next/font/local";
 import "@lite/ui/globals.css";
-import { Geist } from "next/font/google";
-import { cn } from "@lite/ui/lib/utils";
+import { Providers } from "@/providers";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+import { cn } from "@lite/ui/lib/utils";
+import type { Metadata } from "next";
+import { Geist } from "next/font/google";
+import localFont from "next/font/local";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -28,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", geist.variable)}>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
