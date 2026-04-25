@@ -1,4 +1,6 @@
-const API_BASE_URL = "http://localhost:5000";
+import { env } from "@lite/env/client";
+
+const API_BASE_URL = env.NEXT_PUBLIC_BACKEND_URL;
 
 export class ApiError extends Error {
   status: number;
