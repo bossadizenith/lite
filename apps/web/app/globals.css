@@ -1,0 +1,5 @@
+@import "@lite/ui/globals.css";
+
+@source "./**/*.{ts,tsx,js,jsx,mdx}";
+@source "../../components/**/*.{ts,tsx,js,jsx,mdx}";
+@source "../../../packages/ui/src/**/*.{ts,tsx,js,jsx,mdx}";

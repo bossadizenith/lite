@@ -1,4 +1,4 @@
-import "@lite/ui/globals.css";
+import "./globals.css";
 import { Providers } from "@/providers";
 
 import { cn } from "@lite/ui/lib/utils";
