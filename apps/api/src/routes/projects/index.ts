@@ -152,14 +152,31 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
   const encoder = new TextEncoder();
   const sentLogIds = new Set<string>();
   let closed = false;
+  let controllerClosed = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const markClosed = () => {
+    closed = true;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
 
   c.req.raw.signal.addEventListener("abort", () => {
-    closed = true;
+    markClosed();
   });
 
   const stream = new ReadableStream({
     start(controller) {
+      const safelyCloseController = () => {
+        if (controllerClosed) return;
+        controllerClosed = true;
+        controller.close();
+      };
+
       const send = (event: string, data: unknown) => {
+        if (controllerClosed || closed) return;
         controller.enqueue(
           encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
         );
@@ -167,7 +184,7 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
 
       const tick = async () => {
         if (closed) {
-          controller.close();
+          safelyCloseController();
           return;
         }
 
@@ -191,15 +208,17 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
             error: error instanceof Error ? error.message : String(error),
           });
         } finally {
-          setTimeout(tick, 1000);
+          if (!closed) {
+            timer = setTimeout(tick, 1000);
+          }
         }
       };
 
       send("connected", { deploymentId });
-      tick();
+      void tick();
     },
     cancel() {
-      closed = true;
+      markClosed();
     },
   });
 

@@ -14,6 +14,13 @@ export const Logs = ({ deploymentId }: LogsProps) => {
   const [logs, setLogs] = React.useState<LogEvent[]>([]);
   const [deployment, setDeployment] = React.useState<DeploymentMetadata>({});
   const [isConnected, setIsConnected] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (ref.current) {
+      ref.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [logs.length]);
 
   React.useEffect(() => {
     let eventSource: EventSource | null = null;
@@ -88,6 +95,7 @@ export const Logs = ({ deploymentId }: LogsProps) => {
             </p>
           ))
         )}
+        <div ref={ref} />
       </div>
     </div>
   );
