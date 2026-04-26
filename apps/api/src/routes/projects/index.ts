@@ -1,6 +1,7 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
-import { projects } from "@lite/db/schema";
+import { deployments, projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import Redis from "ioredis";
 import { nanoid } from "nanoid";
@@ -44,6 +45,8 @@ type LogEvent = {
   source?: "build" | "system";
 };
 
+type DeploymentDbStatus = "queued" | "deploying" | "ready" | "failed";
+
 function parseLogEvents(rawLogs: string[]): LogEvent[] {
   return rawLogs.flatMap((rawLog) => {
     try {
@@ -52,6 +55,21 @@ function parseLogEvents(rawLogs: string[]): LogEvent[] {
       return [];
     }
   });
+}
+
+function toDeploymentDbStatus(
+  metadataStatus?: string,
+): DeploymentDbStatus | null {
+  switch (metadataStatus) {
+    case "running":
+      return "deploying";
+    case "success":
+      return "ready";
+    case "error":
+      return "failed";
+    default:
+      return null;
+  }
 }
 
 projectsRouter.post("/", async (c) => {
@@ -81,6 +99,12 @@ projectsRouter.post("/", async (c) => {
       customDomain: "",
     })
     .returning();
+
+  await db.insert(deployments).values({
+    id: finalSlug,
+    projectId: project.id,
+    status: "queued",
+  });
 
   const command = new RunTaskCommand({
     cluster: CONFIG.CLUSTER,
@@ -113,7 +137,23 @@ projectsRouter.post("/", async (c) => {
 
   try {
     await ecsClient.send(command);
+
+    await db
+      .update(deployments)
+      .set({
+        status: "deploying",
+        updatedAt: new Date(),
+      })
+      .where(eq(deployments.id, finalSlug));
   } catch (error) {
+    await db
+      .update(deployments)
+      .set({
+        status: "failed",
+        updatedAt: new Date(),
+      })
+      .where(eq(deployments.id, finalSlug));
+
     console.error("Error running ECS task:", error);
     return c.json({ error: "Failed to start build" }, 500);
   }
@@ -122,6 +162,8 @@ projectsRouter.post("/", async (c) => {
 });
 
 projectsRouter.get("/:deploymentId/logs", async (c) => {
+  const db = c.get("db");
+
   if (!redis) {
     return c.json({ error: "Redis is not configured" }, 500);
   }
@@ -135,6 +177,17 @@ projectsRouter.get("/:deploymentId/logs", async (c) => {
     redis.hgetall(deploymentKey),
   ]);
 
+  const dbStatus = toDeploymentDbStatus(metadata.status);
+  if (dbStatus) {
+    await db
+      .update(deployments)
+      .set({
+        status: dbStatus,
+        updatedAt: new Date(),
+      })
+      .where(eq(deployments.id, deploymentId));
+  }
+
   return c.json({
     logs: parseLogEvents(logs),
     deployment: metadata,
@@ -142,6 +195,8 @@ projectsRouter.get("/:deploymentId/logs", async (c) => {
 });
 
 projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
+  const db = c.get("db");
+
   if (!redis) {
     return c.json({ error: "Redis is not configured" }, 500);
   }
@@ -193,6 +248,17 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
             redis.lrange(logsKey, 0, -1),
             redis.hgetall(deploymentKey),
           ]);
+
+          const dbStatus = toDeploymentDbStatus(deployment.status);
+          if (dbStatus) {
+            await db
+              .update(deployments)
+              .set({
+                status: dbStatus,
+                updatedAt: new Date(),
+              })
+              .where(eq(deployments.id, deploymentId));
+          }
 
           const parsedLogs = parseLogEvents(logs);
           for (const logEvent of parsedLogs) {

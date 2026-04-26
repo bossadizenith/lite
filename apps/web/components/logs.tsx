@@ -15,6 +15,9 @@ export const Logs = ({ deploymentId }: LogsProps) => {
   const [deployment, setDeployment] = React.useState<DeploymentMetadata>({});
   const [isConnected, setIsConnected] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
+  const isSuccess = deployment.status === "success";
+  const liveDemoHost = `${deploymentId}.localhoststories.dev`;
+  const liveDemoUrl = `https://${liveDemoHost}`;
 
   React.useEffect(() => {
     if (ref.current) {
@@ -84,6 +87,19 @@ export const Logs = ({ deploymentId }: LogsProps) => {
           {isConnected ? "live" : "reconnecting"}
         </div>
       </div>
+      {isSuccess ? (
+        <p className="mb-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+          Deployed live demo is on{" "}
+          <a
+            href={liveDemoUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium underline"
+          >
+            {liveDemoHost}
+          </a>
+        </p>
+      ) : null}
       <div className="max-h-[380px] overflow-auto rounded bg-black p-3 font-mono text-sm text-white">
         {logs.length === 0 ? (
           <p className="text-zinc-400">No logs yet...</p>
