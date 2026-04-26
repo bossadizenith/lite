@@ -86,6 +86,7 @@ projectsRouter.post("/", async (c) => {
   const finalSlug = slug ?? generateSlug();
   const name = repoUrl.split("/").pop() ?? finalSlug;
   const id = nanoid(8);
+  const deploymentUrl = `${finalSlug}.localhoststories.dev`;
 
   const [project] = await db
     .insert(projects)
@@ -103,6 +104,7 @@ projectsRouter.post("/", async (c) => {
   await db.insert(deployments).values({
     id: finalSlug,
     projectId: project.id,
+    url: deploymentUrl,
     status: "queued",
   });
 

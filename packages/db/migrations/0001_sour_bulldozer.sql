@@ -1,0 +1,1 @@
+ALTER TABLE "deployments" ADD COLUMN "url" varchar(255) NOT NULL;
