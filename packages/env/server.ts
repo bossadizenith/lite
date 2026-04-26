@@ -13,7 +13,7 @@ export const env = createEnvCore({
     AWS_SECRET_ACCESS_KEY: z.string(),
     AWS_REGION: z.string(),
     AWS_BUCKET_URL: z.string(),
-    // REDIS_URL: z.string(),
+    REDIS_URL: z.string(),
     ECS_CLUSTER_ARN: z.string(),
     ECS_TASK_DEFINITION_ARN: z.string(),
     SUBNET_1: z.string(),

@@ -1,5 +1,94 @@
-import React from "react";
+"use client";
 
-export const Logs = () => {
-  return <div>Logs</div>;
+import { env } from "@lite/env/client";
+import React from "react";
+import { DeploymentMetadata, LogEvent, PROJECTS_QUERY } from "@/lib/queries";
+
+type LogsProps = {
+  deploymentId: string;
+};
+
+const API_BASE_URL = `${env.NEXT_PUBLIC_BACKEND_URL}/api`;
+
+export const Logs = ({ deploymentId }: LogsProps) => {
+  const [logs, setLogs] = React.useState<LogEvent[]>([]);
+  const [deployment, setDeployment] = React.useState<DeploymentMetadata>({});
+  const [isConnected, setIsConnected] = React.useState(false);
+
+  React.useEffect(() => {
+    let eventSource: EventSource | null = null;
+    let isMounted = true;
+
+    const hydrateAndStream = async () => {
+      try {
+        const initialData = await PROJECTS_QUERY.logs(deploymentId);
+        if (!isMounted) return;
+
+        setLogs(initialData.logs);
+        setDeployment(initialData.deployment ?? {});
+
+        eventSource = new EventSource(
+          `${API_BASE_URL}/projects/${deploymentId}/logs/stream`,
+        );
+
+        eventSource.addEventListener("connected", () => {
+          setIsConnected(true);
+        });
+
+        eventSource.addEventListener("log", (event) => {
+          const payload = JSON.parse((event as MessageEvent).data) as LogEvent;
+
+          setLogs((prevLogs) => {
+            if (prevLogs.some((log) => log.id === payload.id)) return prevLogs;
+            return [...prevLogs, payload];
+          });
+        });
+
+        eventSource.addEventListener("deployment", (event) => {
+          const payload = JSON.parse((event as MessageEvent).data) as
+            | DeploymentMetadata
+            | undefined;
+          if (!payload) return;
+          setDeployment(payload);
+        });
+
+        eventSource.onerror = () => {
+          setIsConnected(false);
+        };
+      } catch {
+        setIsConnected(false);
+      }
+    };
+
+    hydrateAndStream();
+
+    return () => {
+      isMounted = false;
+      eventSource?.close();
+    };
+  }, [deploymentId]);
+
+  return (
+    <div className="w-full max-w-3xl rounded-md border p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Build logs</h2>
+        <div className="text-sm text-muted-foreground">
+          status: {deployment.status ?? "pending"} |{" "}
+          {isConnected ? "live" : "reconnecting"}
+        </div>
+      </div>
+      <div className="max-h-[380px] overflow-auto rounded bg-black p-3 font-mono text-sm text-white">
+        {logs.length === 0 ? (
+          <p className="text-zinc-400">No logs yet...</p>
+        ) : (
+          logs.map((log) => (
+            <p key={log.id} className="break-words">
+              [{new Date(log.timestamp).toLocaleTimeString()}] [{log.level}]{" "}
+              {log.message}
+            </p>
+          ))
+        )}
+      </div>
+    </div>
+  );
 };

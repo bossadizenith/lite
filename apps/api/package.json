@@ -15,6 +15,7 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.8.10",
+    "ioredis": "^5.10.1",
     "nanoid": "^5.1.9",
     "random-word-slugs": "^0.1.7",
     "zod": "^4.3.6"

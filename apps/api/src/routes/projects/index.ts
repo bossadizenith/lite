@@ -2,6 +2,7 @@ import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import { projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
 import { Hono } from "hono";
+import Redis from "ioredis";
 import { nanoid } from "nanoid";
 import { generateSlug } from "random-word-slugs";
 import z from "zod";
@@ -32,6 +33,26 @@ const CONFIG = {
   CLUSTER: env.ECS_CLUSTER_ARN,
   TASK: env.ECS_TASK_DEFINITION_ARN,
 };
+
+const redis = new Redis(env.REDIS_URL);
+
+type LogEvent = {
+  id: string;
+  timestamp: number;
+  level: "info" | "error" | "success" | "warn";
+  message: string;
+  source?: "build" | "system";
+};
+
+function parseLogEvents(rawLogs: string[]): LogEvent[] {
+  return rawLogs.flatMap((rawLog) => {
+    try {
+      return [JSON.parse(rawLog) as LogEvent];
+    } catch {
+      return [];
+    }
+  });
+}
 
 projectsRouter.post("/", async (c) => {
   const db = c.get("db");
@@ -83,6 +104,7 @@ projectsRouter.post("/", async (c) => {
             { name: "AWS_ACCESS_KEY_ID", value: env.AWS_ACCESS_KEY_ID },
             { name: "AWS_SECRET_ACCESS_KEY", value: env.AWS_SECRET_ACCESS_KEY },
             { name: "AWS_REGION", value: env.AWS_REGION },
+            { name: "REDIS_URL", value: env.REDIS_URL },
           ],
         },
       ],
@@ -97,6 +119,98 @@ projectsRouter.post("/", async (c) => {
   }
 
   return c.json(project);
+});
+
+projectsRouter.get("/:deploymentId/logs", async (c) => {
+  if (!redis) {
+    return c.json({ error: "Redis is not configured" }, 500);
+  }
+
+  const deploymentId = c.req.param("deploymentId");
+  const logsKey = `logs:${deploymentId}`;
+  const deploymentKey = `deployment:${deploymentId}`;
+
+  const [logs, metadata] = await Promise.all([
+    redis.lrange(logsKey, 0, -1),
+    redis.hgetall(deploymentKey),
+  ]);
+
+  return c.json({
+    logs: parseLogEvents(logs),
+    deployment: metadata,
+  });
+});
+
+projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
+  if (!redis) {
+    return c.json({ error: "Redis is not configured" }, 500);
+  }
+
+  const deploymentId = c.req.param("deploymentId");
+  const logsKey = `logs:${deploymentId}`;
+  const deploymentKey = `deployment:${deploymentId}`;
+  const encoder = new TextEncoder();
+  const sentLogIds = new Set<string>();
+  let closed = false;
+
+  c.req.raw.signal.addEventListener("abort", () => {
+    closed = true;
+  });
+
+  const stream = new ReadableStream({
+    start(controller) {
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+        );
+      };
+
+      const tick = async () => {
+        if (closed) {
+          controller.close();
+          return;
+        }
+
+        try {
+          const [logs, deployment] = await Promise.all([
+            redis.lrange(logsKey, 0, -1),
+            redis.hgetall(deploymentKey),
+          ]);
+
+          const parsedLogs = parseLogEvents(logs);
+          for (const logEvent of parsedLogs) {
+            if (sentLogIds.has(logEvent.id)) continue;
+            sentLogIds.add(logEvent.id);
+            send("log", logEvent);
+          }
+
+          send("deployment", deployment);
+        } catch (error) {
+          send("error", {
+            message: "Failed to stream logs",
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } finally {
+          setTimeout(tick, 1000);
+        }
+      };
+
+      send("connected", { deploymentId });
+      tick();
+    },
+    cancel() {
+      closed = true;
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 });
 
 export default projectsRouter;

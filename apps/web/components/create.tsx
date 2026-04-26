@@ -1,6 +1,7 @@
 "use client";
 
 import { PROJECTS_QUERY } from "@/lib/queries";
+import { Logs } from "@/components/logs";
 import { Input } from "@lite/ui/components/input";
 import { LoadingButton } from "@lite/ui/components/loading-button";
 import { useMutation } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import { toast } from "sonner";
 import { CreateProjectSchema, createProjectSchema } from "@/lib/schema";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import React from "react";
 import {
   FieldGroup,
   Field,
@@ -16,12 +18,14 @@ import {
 } from "@lite/ui/components/field";
 
 export const Create = () => {
+  const [deploymentId, setDeploymentId] = React.useState<string | null>(null);
   const form = useForm<CreateProjectSchema>({
     resolver: zodResolver(createProjectSchema),
   });
   const { mutate: createProject, isPending } = useMutation({
     mutationFn: PROJECTS_QUERY.create,
-    onSuccess: () => {
+    onSuccess: (project) => {
+      setDeploymentId(project.slug);
       toast.success("Project created successfully");
     },
     onError: () => {
@@ -34,7 +38,7 @@ export const Create = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen">
+    <div className="flex flex-col gap-8 items-center justify-center h-screen">
       <form
         onSubmit={form.handleSubmit(handleCreateProject)}
         className="w-full max-w-md space-y-4"
@@ -71,6 +75,11 @@ export const Create = () => {
           Create
         </LoadingButton>
       </form>
+      {deploymentId ? (
+        <div className="w-full max-w-3xl">
+          <Logs deploymentId={deploymentId} />
+        </div>
+      ) : null}
     </div>
   );
 };
