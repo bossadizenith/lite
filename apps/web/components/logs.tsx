@@ -25,6 +25,8 @@ export const Logs = ({ deploymentId }: LogsProps) => {
     }
   }, [logs.length]);
 
+  // nothing for now
+
   React.useEffect(() => {
     let eventSource: EventSource | null = null;
     let isMounted = true;
