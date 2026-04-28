@@ -1,8 +1,7 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { exec } from "child_process";
 import fs from "fs";
-import Redis from "ioredis";
-import mime from "mime-types";
+import { Redis } from "ioredis";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -10,10 +9,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
+  region: String(process.env.AWS_REGION),
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId: String(process.env.AWS_ACCESS_KEY_ID),
+    secretAccessKey: String(process.env.AWS_SECRET_ACCESS_KEY),
   },
 });
 
@@ -24,10 +23,10 @@ const DEPLOYMENT_KEY = `deployment:${PROJECT_ID}`;
 const MAX_LOG_EVENTS = 1000;
 const LOG_TTL_SECONDS = 60 * 60;
 
-const redis = REDIS_URL ? new Redis(REDIS_URL) : null;
+const redis = REDIS_URL ? new Redis(String(REDIS_URL)) : null;
 let logSequence = 0;
 
-function createLogEvent(message, level = "info", source = "build") {
+function createLogEvent(message: string, level = "info", source = "build") {
   logSequence += 1;
   return {
     id: `log_${logSequence}`,
@@ -38,7 +37,7 @@ function createLogEvent(message, level = "info", source = "build") {
   };
 }
 
-async function publishLog(message, level = "info", source = "build") {
+async function publishLog(message: string, level = "info", source = "build") {
   const event = createLogEvent(message, level, source);
   const payload = JSON.stringify(event);
 
@@ -55,7 +54,7 @@ async function publishLog(message, level = "info", source = "build") {
 }
 
 async function init() {
-  console.log("Executing script.js");
+  console.log("Executing script.ts");
   if (redis) {
     await redis.hset(DEPLOYMENT_KEY, {
       status: "running",
@@ -70,17 +69,21 @@ async function init() {
 
   const p = exec(`cd ${outDirPath} && npm install && npm run build`);
 
-  p.stdout.on("data", async function (data) {
-    console.log(data.toString());
-    await publishLog(data.toString().trim());
-  });
+  if (p.stdout) {
+    p.stdout.on("data", async function (data: Buffer) {
+      console.log(data.toString());
+      await publishLog(data.toString().trim());
+    });
+  }
 
-  p.stderr.on("data", async function (data) {
-    console.log("Error", data.toString());
-    await publishLog(data.toString().trim(), "error");
-  });
+  if (p.stderr) {
+    p.stderr.on("data", async function (data: Buffer) {
+      console.log("Error", data.toString());
+      await publishLog(data.toString().trim(), "error");
+    });
+  }
 
-  p.on("close", async function (code) {
+  p.on("close", async function (code: number | null) {
     if (code !== 0) {
       console.error(`Build failed with exit code ${code}`);
       await publishLog(`Build failed with exit code ${code}`, "error");
@@ -113,7 +116,7 @@ async function init() {
     try {
       const distFolderContents = fs.readdirSync(distFolderPath, {
         recursive: true,
-      });
+      }) as string[];
 
       await publishLog("Starting upload phase...");
       for (const file of distFolderContents) {
@@ -127,7 +130,6 @@ async function init() {
           Bucket: "vercel-lite-clone",
           Key: `__outputs/${PROJECT_ID}/${file}`,
           Body: fs.createReadStream(filePath),
-          ContentType: mime.lookup(filePath),
         });
 
         await s3Client.send(command);
@@ -144,8 +146,9 @@ async function init() {
       console.log("Done...");
       process.exit(0);
     } catch (err) {
-      console.error("Upload failed", err);
-      await publishLog(`Upload failed: ${err.message}`, "error");
+      const error = err as Error;
+      console.error("Upload failed", error);
+      await publishLog(`Upload failed: ${error.message}`, "error");
       if (redis) {
         await redis.hset(DEPLOYMENT_KEY, {
           status: "error",
