@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 
-type Framework = "nextjs" | "vite" | "unknown";
+export type Framework = "nextjs" | "vite" | "unknown";
 
 type DetectionResult = {
   framework: Framework;
@@ -20,7 +20,9 @@ function hasDep(pkg: PackageJson, name: string): boolean {
   return Boolean(pkg.dependencies?.[name] || pkg.devDependencies?.[name]);
 }
 
-async function detectFramework(repoRoot: string): Promise<DetectionResult> {
+export async function detectFramework(
+  repoRoot: string,
+): Promise<DetectionResult> {
   const candidates = await findCandidateAppDirs(repoRoot);
   let best: DetectionResult = {
     framework: "unknown",

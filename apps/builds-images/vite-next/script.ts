@@ -4,6 +4,7 @@ import fs from "fs";
 import { Redis } from "ioredis";
 import path from "path";
 import { fileURLToPath } from "url";
+import { detectFramework, type Framework } from "./framework-detection.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,7 +55,6 @@ async function publishLog(message: string, level = "info", source = "build") {
 }
 
 async function init() {
-  console.log("Executing script.ts");
   if (redis) {
     await redis.hset(DEPLOYMENT_KEY, {
       status: "running",
@@ -66,6 +66,25 @@ async function init() {
 
   await publishLog("Build started...");
   const outDirPath = path.join(__dirname, "output");
+  const results = await detectFramework(outDirPath);
+
+  const framework = results.framework;
+
+  await publishLog(
+    `Detected framework: ${framework}, rootDir: ${results.rootDir}, confidence: ${results.confidence}`,
+  );
+
+  if (framework === "nextjs") {
+    // TODO: Build Next.js project
+    await publishLog("Building Next.js project...");
+  } else if (framework === "vite") {
+    // TODO: Build Vite project
+    await publishLog("Building Vite project...");
+  } else {
+    // TODO: Unknown framework
+    await publishLog("Unknown framework", "error");
+    throw new Error("Unsupported framework");
+  }
 
   const p = exec(`cd ${outDirPath} && npm install && npm run build`);
 
