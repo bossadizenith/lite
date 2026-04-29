@@ -4,7 +4,10 @@ import fs from "fs";
 import { Redis } from "ioredis";
 import path from "path";
 import { fileURLToPath } from "url";
-import { detectFramework } from "./framework-detection.js";
+import {
+  detectFramework,
+  type Framework,
+} from "./framework-detection.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +41,15 @@ function createLogEvent(message: string, level = "info", source = "build") {
   };
 }
 
+async function markDeploymentError() {
+  if (redis) {
+    await redis.hset(DEPLOYMENT_KEY, {
+      status: "error",
+      finishedAt: Date.now().toString(),
+    });
+  }
+}
+
 async function publishLog(message: string, level = "info", source = "build") {
   const event = createLogEvent(message, level, source);
   const payload = JSON.stringify(event);
@@ -67,29 +79,40 @@ async function init() {
   await publishLog("Build started...");
   const outDirPath = path.join(__dirname, "output");
 
-  let p = exec(`cd ${outDirPath}`);
-
   const results = await detectFramework(outDirPath);
-
-  const framework = results.framework;
+  const framework: Framework = results.framework;
 
   await publishLog(
     `Detected framework: ${framework}, rootDir: ${results.rootDir}, confidence: ${results.confidence}`,
   );
 
-  if (framework === "nextjs") {
-    // TODO: Build Next.js project
-    await publishLog("Building Next.js project...");
-  } else if (framework === "vite") {
-    // TODO: Build Vite project
-    await publishLog("Building Vite project...");
-  } else {
-    // TODO: Unknown framework
-    await publishLog("Unknown framework", "error");
-    throw new Error("Unsupported framework");
+  if (framework === "unknown") {
+    await publishLog(
+      "Unknown framework: could not detect Next.js or Vite in this repository.",
+      "error",
+    );
+    await markDeploymentError();
+    process.exit(1);
   }
 
-  p = exec("npm install && npm run build");
+  const appRoot =
+    results.rootDir === "."
+      ? outDirPath
+      : path.join(outDirPath, results.rootDir);
+
+  const artifactDir =
+    framework === "vite"
+      ? path.join(appRoot, "dist")
+      : path.join(appRoot, "out");
+
+  const buildDescription =
+    framework === "vite"
+      ? "Vite (output: dist/)"
+      : "Next.js static export (output: out/ — set output: 'export' in next.config)";
+
+  await publishLog(`Building ${buildDescription} in ${appRoot}...`);
+
+  const p = exec("npm install && npm run build", { cwd: appRoot });
 
   if (p.stdout) {
     p.stdout.on("data", async function (data: Buffer) {
@@ -109,40 +132,33 @@ async function init() {
     if (code !== 0) {
       console.error(`Build failed with exit code ${code}`);
       await publishLog(`Build failed with exit code ${code}`, "error");
-      if (redis) {
-        await redis.hset(DEPLOYMENT_KEY, {
-          status: "error",
-          finishedAt: Date.now().toString(),
-        });
-      }
+      await markDeploymentError();
       process.exit(1);
     }
 
     console.log("Build Complete");
     await publishLog("Build complete", "success");
-    const distFolderPath = path.join(__dirname, "output", "dist");
 
-    if (!fs.existsSync(distFolderPath)) {
-      const errorMsg = `Error: Build output directory 'dist' not found at ${distFolderPath}. Please check if your project build command is correct.`;
+    if (!fs.existsSync(artifactDir)) {
+      const nextHint =
+        framework === "nextjs"
+          ? " For full SSR use a container runtime; for static hosting add output: 'export' to next.config so `out/` is produced."
+          : "";
+      const errorMsg = `Error: Build output not found at ${artifactDir}.${nextHint}`;
       console.error(errorMsg);
       await publishLog(errorMsg, "error");
-      if (redis) {
-        await redis.hset(DEPLOYMENT_KEY, {
-          status: "error",
-          finishedAt: Date.now().toString(),
-        });
-      }
+      await markDeploymentError();
       process.exit(1);
     }
 
     try {
-      const distFolderContents = fs.readdirSync(distFolderPath, {
+      const distFolderContents = fs.readdirSync(artifactDir, {
         recursive: true,
       }) as string[];
 
       await publishLog("Starting upload phase...");
       for (const file of distFolderContents) {
-        const filePath = path.join(distFolderPath, file);
+        const filePath = path.join(artifactDir, file);
         if (fs.lstatSync(filePath).isDirectory()) continue;
 
         console.log("uploading", filePath);
@@ -171,18 +187,18 @@ async function init() {
       const error = err as Error;
       console.error("Upload failed", error);
       await publishLog(`Upload failed: ${error.message}`, "error");
-      if (redis) {
-        await redis.hset(DEPLOYMENT_KEY, {
-          status: "error",
-          finishedAt: Date.now().toString(),
-        });
-      }
+      await markDeploymentError();
       process.exit(1);
     }
   });
 }
 
-init().catch((err) => {
+init().catch(async (err) => {
   console.error("Initial execution failed", err);
+  try {
+    await markDeploymentError();
+  } catch {
+    /* ignore secondary failures */
+  }
   process.exit(1);
 });

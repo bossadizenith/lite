@@ -85,16 +85,32 @@ export async function detectFramework(
   return best;
 }
 
+const IGNORED_TOP_LEVEL_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "out",
+  ".next",
+]);
+
 async function findCandidateAppDirs(repoRoot: string): Promise<string[]> {
-  const dirs = await fs.readdir(repoRoot);
+  const candidates: string[] = ["."];
+  let entries;
+  try {
+    entries = await fs.readdir(repoRoot, { withFileTypes: true });
+  } catch {
+    return candidates;
+  }
 
-  const filteredDirs = await Promise.all(
-    dirs.filter(async (dir) =>
-      (await fs.stat(path.join(repoRoot, dir))).isDirectory(),
-    ),
-  );
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const name = String(entry.name);
+    if (name.startsWith(".")) continue;
+    if (IGNORED_TOP_LEVEL_DIRS.has(name)) continue;
+    candidates.push(name);
+  }
 
-  return filteredDirs;
+  return candidates;
 }
 
 const readPackageJsonIfExists = async (
@@ -110,12 +126,14 @@ const readPackageJsonIfExists = async (
   }
 };
 
+const CONFIG_FILE_EXT = /\.(js|mjs|cjs|ts|mts|cts)$/i;
+
 const listTopFiles = async (
   repoRoot: string,
   dir: string,
 ): Promise<string[]> => {
   const files = await fs.readdir(path.join(repoRoot, dir));
-  return files.filter((file) => file.endsWith(".js") || file.endsWith(".ts"));
+  return files.filter((file) => CONFIG_FILE_EXT.test(file));
 };
 
 const exists = async (
