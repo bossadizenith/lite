@@ -4,7 +4,7 @@ import fs from "fs";
 import { Redis } from "ioredis";
 import path from "path";
 import { fileURLToPath } from "url";
-import { detectFramework, type Framework } from "./framework-detection.js";
+import { detectFramework } from "./framework-detection.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,6 +66,9 @@ async function init() {
 
   await publishLog("Build started...");
   const outDirPath = path.join(__dirname, "output");
+
+  let p = exec(`cd ${outDirPath}`);
+
   const results = await detectFramework(outDirPath);
 
   const framework = results.framework;
@@ -86,7 +89,7 @@ async function init() {
     throw new Error("Unsupported framework");
   }
 
-  const p = exec(`cd ${outDirPath} && npm install && npm run build`);
+  p = exec("npm install && npm run build");
 
   if (p.stdout) {
     p.stdout.on("data", async function (data: Buffer) {
