@@ -2,6 +2,7 @@ import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { exec } from "child_process";
 import fs from "fs";
 import { Redis } from "ioredis";
+import { lookup as lookupMime } from "mime-types";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
@@ -168,6 +169,7 @@ async function init() {
           Bucket: "vercel-lite-clone",
           Key: `__outputs/${PROJECT_ID}/${file}`,
           Body: fs.createReadStream(filePath),
+          ContentType: lookupMime(file) || undefined,
         });
 
         await s3Client.send(command);
