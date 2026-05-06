@@ -5,10 +5,9 @@ import { Redis } from "ioredis";
 import { lookup as lookupMime } from "mime-types";
 import path from "path";
 import { fileURLToPath } from "url";
-import {
-  detectFramework,
-  type Framework,
-} from "./framework-detection.js";
+import { detectFramework, type Framework } from "./framework-detection.js";
+
+// Just thinking of how the next deployment works is going to work like.
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
