@@ -86,6 +86,7 @@ projectsRouter.post("/", async (c) => {
   const finalSlug = slug ?? generateSlug();
   const name = repoUrl.split("/").pop() ?? finalSlug;
   const id = nanoid(8);
+  const deploymentId = nanoid(12);
   const deploymentUrl = `${finalSlug}.localhoststories.dev`;
 
   const [project] = await db
@@ -102,7 +103,7 @@ projectsRouter.post("/", async (c) => {
     .returning();
 
   await db.insert(deployments).values({
-    id: finalSlug,
+    id: deploymentId,
     projectId: project.id,
     url: deploymentUrl,
     status: "queued",
@@ -127,6 +128,7 @@ projectsRouter.post("/", async (c) => {
           environment: [
             { name: "GIT_REPOSITORY_URL", value: repoUrl },
             { name: "PROJECT_ID", value: finalSlug },
+            { name: "DEPLOYMENT_ID", value: deploymentId },
             { name: "AWS_ACCESS_KEY_ID", value: env.AWS_ACCESS_KEY_ID },
             { name: "AWS_SECRET_ACCESS_KEY", value: env.AWS_SECRET_ACCESS_KEY },
             { name: "AWS_REGION", value: env.AWS_REGION },
@@ -146,7 +148,7 @@ projectsRouter.post("/", async (c) => {
         status: "building",
         updatedAt: new Date(),
       })
-      .where(eq(deployments.id, finalSlug));
+      .where(eq(deployments.id, deploymentId));
   } catch (error) {
     await db
       .update(deployments)
@@ -156,13 +158,13 @@ projectsRouter.post("/", async (c) => {
         finishedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(deployments.id, finalSlug));
+      .where(eq(deployments.id, deploymentId));
 
     console.error("Error running ECS task:", error);
     return c.json({ error: "Failed to start build" }, 500);
   }
 
-  return c.json(project);
+  return c.json({ ...project, deploymentId });
 });
 
 projectsRouter.get("/:deploymentId/logs", async (c) => {
@@ -183,10 +185,16 @@ projectsRouter.get("/:deploymentId/logs", async (c) => {
 
   const dbStatus = toDeploymentDbStatus(metadata.status);
   if (dbStatus) {
+    const isTerminal = dbStatus === "built" || dbStatus === "failed";
     await db
       .update(deployments)
       .set({
         status: dbStatus,
+        finishedAt: isTerminal ? new Date() : undefined,
+        errorMessage:
+          dbStatus === "failed"
+            ? metadata.errorMessage || metadata.message || "Build failed"
+            : undefined,
         updatedAt: new Date(),
       })
       .where(eq(deployments.id, deploymentId));
@@ -255,10 +263,18 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
 
           const dbStatus = toDeploymentDbStatus(deployment.status);
           if (dbStatus) {
+            const isTerminal = dbStatus === "built" || dbStatus === "failed";
             await db
               .update(deployments)
               .set({
                 status: dbStatus,
+                finishedAt: isTerminal ? new Date() : undefined,
+                errorMessage:
+                  dbStatus === "failed"
+                    ? deployment.errorMessage ||
+                      deployment.message ||
+                      "Build failed"
+                    : undefined,
                 updatedAt: new Date(),
               })
               .where(eq(deployments.id, deploymentId));

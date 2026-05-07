@@ -21,9 +21,10 @@ const s3Client = new S3Client({
 });
 
 const PROJECT_ID = process.env.PROJECT_ID;
+const DEPLOYMENT_ID = process.env.DEPLOYMENT_ID ?? PROJECT_ID;
 const REDIS_URL = process.env.REDIS_URL;
-const LOGS_KEY = `logs:${PROJECT_ID}`;
-const DEPLOYMENT_KEY = `deployment:${PROJECT_ID}`;
+const LOGS_KEY = `logs:${DEPLOYMENT_ID}`;
+const DEPLOYMENT_KEY = `deployment:${DEPLOYMENT_ID}`;
 const MAX_LOG_EVENTS = 1000;
 const LOG_TTL_SECONDS = 60 * 60;
 
@@ -54,7 +55,7 @@ async function publishLog(message: string, level = "info", source = "build") {
   const event = createLogEvent(message, level, source);
   const payload = JSON.stringify(event);
 
-  console.log(`[LOG]-${PROJECT_ID}: ${payload}`);
+  console.log(`[LOG]-${DEPLOYMENT_ID}: ${payload}`);
 
   if (!redis) {
     return;
@@ -72,6 +73,7 @@ async function init() {
       status: "running",
       startedAt: Date.now().toString(),
       projectId: PROJECT_ID,
+      deploymentId: DEPLOYMENT_ID,
     });
     await redis.expire(DEPLOYMENT_KEY, LOG_TTL_SECONDS);
   }
