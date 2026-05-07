@@ -1,5 +1,5 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
-import { deployments, projects } from "@lite/db/schema";
+import { deploymentStatusEnum, deployments, projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
@@ -45,7 +45,7 @@ type LogEvent = {
   source?: "build" | "system";
 };
 
-type DeploymentDbStatus = "queued" | "deploying" | "ready" | "failed";
+type DeploymentDbStatus = (typeof deploymentStatusEnum.enumValues)[number];
 
 function parseLogEvents(rawLogs: string[]): LogEvent[] {
   return rawLogs.flatMap((rawLog) => {
@@ -62,9 +62,9 @@ function toDeploymentDbStatus(
 ): DeploymentDbStatus | null {
   switch (metadataStatus) {
     case "running":
-      return "deploying";
+      return "building";
     case "success":
-      return "ready";
+      return "built";
     case "error":
       return "failed";
     default:
@@ -143,7 +143,7 @@ projectsRouter.post("/", async (c) => {
     await db
       .update(deployments)
       .set({
-        status: "deploying",
+        status: "building",
         updatedAt: new Date(),
       })
       .where(eq(deployments.id, finalSlug));
@@ -152,6 +152,8 @@ projectsRouter.post("/", async (c) => {
       .update(deployments)
       .set({
         status: "failed",
+        errorMessage: error instanceof Error ? error.message : String(error),
+        finishedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(deployments.id, finalSlug));
