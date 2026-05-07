@@ -1,7 +1,7 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import { deploymentStatusEnum, deployments, projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import Redis from "ioredis";
 import { nanoid } from "nanoid";
@@ -48,6 +48,8 @@ type LogEvent = {
 type DeploymentDbStatus = (typeof deploymentStatusEnum.enumValues)[number];
 type DbClient = ReqVariables["db"];
 type DeploymentMetadata = Record<string, string>;
+const HEALTHCHECK_ATTEMPTS = 5;
+const HEALTHCHECK_DELAY_MS = 1500;
 
 function parseLogEvents(rawLogs: string[]): LogEvent[] {
   return rawLogs.flatMap((rawLog) => {
@@ -122,6 +124,92 @@ async function syncDeploymentFromMetadata(
         .where(eq(projects.id, deploymentRecord.projectId));
     }
   }
+
+  if (dbStatus === "built") {
+    void rolloutRuntimeDeployment(db, deploymentId);
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function isDeploymentHealthy(url: string) {
+  for (let i = 0; i < HEALTHCHECK_ATTEMPTS; i += 1) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const response = await fetch(`https://${url}`, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (response.ok || response.status === 301 || response.status === 302) {
+        return true;
+      }
+    } catch {
+      /* probe retries below */
+    }
+
+    await sleep(HEALTHCHECK_DELAY_MS);
+  }
+
+  return false;
+}
+
+async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
+  const [inProgress] = await db
+    .update(deployments)
+    .set({
+      status: "deploying",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(deployments.id, deploymentId), eq(deployments.status, "built")),
+    )
+    .returning({
+      id: deployments.id,
+      url: deployments.url,
+      projectId: deployments.projectId,
+    });
+
+  if (!inProgress) {
+    // Another polling loop already promoted this deployment.
+    return;
+  }
+
+  const healthy = await isDeploymentHealthy(inProgress.url);
+
+  if (!healthy) {
+    await db
+      .update(deployments)
+      .set({
+        status: "failed",
+        errorMessage: "Runtime health check failed after build",
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(deployments.id, deploymentId));
+    return;
+  }
+
+  await db
+    .update(deployments)
+    .set({
+      status: "healthy",
+      finishedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(deployments.id, deploymentId));
+
+  await db
+    .update(projects)
+    .set({
+      currentDeploymentId: deploymentId,
+      updatedAt: new Date(),
+    })
+    .where(eq(projects.id, inProgress.projectId));
 }
 
 projectsRouter.post("/", async (c) => {
