@@ -46,6 +46,8 @@ type LogEvent = {
 };
 
 type DeploymentDbStatus = (typeof deploymentStatusEnum.enumValues)[number];
+type DbClient = ReqVariables["db"];
+type DeploymentMetadata = Record<string, string>;
 
 function parseLogEvents(rawLogs: string[]): LogEvent[] {
   return rawLogs.flatMap((rawLog) => {
@@ -63,12 +65,62 @@ function toDeploymentDbStatus(
   switch (metadataStatus) {
     case "running":
       return "building";
+    case "deploying":
+      return "deploying";
+    case "healthy":
+      return "healthy";
     case "success":
       return "built";
     case "error":
+    case "failed":
       return "failed";
     default:
       return null;
+  }
+}
+
+async function syncDeploymentFromMetadata(
+  db: DbClient,
+  deploymentId: string,
+  metadata: DeploymentMetadata,
+) {
+  const dbStatus = toDeploymentDbStatus(metadata.status);
+  if (!dbStatus) return;
+
+  const isTerminal =
+    dbStatus === "built" || dbStatus === "healthy" || dbStatus === "failed";
+
+  await db
+    .update(deployments)
+    .set({
+      status: dbStatus,
+      finishedAt: isTerminal ? new Date() : undefined,
+      errorMessage:
+        dbStatus === "failed"
+          ? metadata.errorMessage || metadata.message || "Build failed"
+          : undefined,
+      updatedAt: new Date(),
+    })
+    .where(eq(deployments.id, deploymentId));
+
+  if (dbStatus === "built" || dbStatus === "healthy") {
+    const [deploymentRecord] = await db
+      .select({
+        projectId: deployments.projectId,
+      })
+      .from(deployments)
+      .where(eq(deployments.id, deploymentId))
+      .limit(1);
+
+    if (deploymentRecord) {
+      await db
+        .update(projects)
+        .set({
+          currentDeploymentId: deploymentId,
+          updatedAt: new Date(),
+        })
+        .where(eq(projects.id, deploymentRecord.projectId));
+    }
   }
 }
 
@@ -183,42 +235,7 @@ projectsRouter.get("/:deploymentId/logs", async (c) => {
     redis.hgetall(deploymentKey),
   ]);
 
-  const dbStatus = toDeploymentDbStatus(metadata.status);
-  if (dbStatus) {
-    const isTerminal = dbStatus === "built" || dbStatus === "failed";
-    await db
-      .update(deployments)
-      .set({
-        status: dbStatus,
-        finishedAt: isTerminal ? new Date() : undefined,
-        errorMessage:
-          dbStatus === "failed"
-            ? metadata.errorMessage || metadata.message || "Build failed"
-            : undefined,
-        updatedAt: new Date(),
-      })
-      .where(eq(deployments.id, deploymentId));
-
-    if (dbStatus === "built") {
-      const [deploymentRecord] = await db
-        .select({
-          projectId: deployments.projectId,
-        })
-        .from(deployments)
-        .where(eq(deployments.id, deploymentId))
-        .limit(1);
-
-      if (deploymentRecord) {
-        await db
-          .update(projects)
-          .set({
-            currentDeploymentId: deploymentId,
-            updatedAt: new Date(),
-          })
-          .where(eq(projects.id, deploymentRecord.projectId));
-      }
-    }
-  }
+  await syncDeploymentFromMetadata(db, deploymentId, metadata);
 
   return c.json({
     logs: parseLogEvents(logs),
@@ -281,44 +298,7 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
             redis.hgetall(deploymentKey),
           ]);
 
-          const dbStatus = toDeploymentDbStatus(deployment.status);
-          if (dbStatus) {
-            const isTerminal = dbStatus === "built" || dbStatus === "failed";
-            await db
-              .update(deployments)
-              .set({
-                status: dbStatus,
-                finishedAt: isTerminal ? new Date() : undefined,
-                errorMessage:
-                  dbStatus === "failed"
-                    ? deployment.errorMessage ||
-                      deployment.message ||
-                      "Build failed"
-                    : undefined,
-                updatedAt: new Date(),
-              })
-              .where(eq(deployments.id, deploymentId));
-
-            if (dbStatus === "built") {
-              const [deploymentRecord] = await db
-                .select({
-                  projectId: deployments.projectId,
-                })
-                .from(deployments)
-                .where(eq(deployments.id, deploymentId))
-                .limit(1);
-
-              if (deploymentRecord) {
-                await db
-                  .update(projects)
-                  .set({
-                    currentDeploymentId: deploymentId,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(projects.id, deploymentRecord.projectId));
-              }
-            }
-          }
+          await syncDeploymentFromMetadata(db, deploymentId, deployment);
 
           const parsedLogs = parseLogEvents(logs);
           for (const logEvent of parsedLogs) {

@@ -8,3 +8,8 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
 
 - Learning how nextjs build works and how it's being served on the client side (browser)
 - thinking of if we should remove vite from a static site to something more interesting. like running on same infra like nextjs that we're currently studying
+
+  07.05.26
+
+- moving off s3 to use container based deployments.
+- updated the [schema](/packages/db/src/schema.ts) and the [api route](/apps/api/src/routes/projects/index.ts) so they both match the new use case we're trying to attain.
