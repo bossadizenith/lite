@@ -15,6 +15,13 @@
       "when": 1777209757473,
       "tag": "0001_sour_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778120537546,
+      "tag": "0002_productive_ser_duncan",
+      "breakpoints": true
     }
   ]
 }

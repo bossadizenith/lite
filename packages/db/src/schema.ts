@@ -3,8 +3,10 @@ import { pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const deploymentStatusEnum = pgEnum("deployment_status", [
   "queued",
+  "building",
+  "built",
   "deploying",
-  "ready",
+  "healthy",
   "failed",
 ]);
 
@@ -16,15 +18,25 @@ export const projects = pgTable("projects", {
   buildCommand: varchar("build_command", { length: 255 }).notNull(),
   subDomain: varchar("sub_domain", { length: 255 }).notNull(),
   customDomain: varchar("custom_domain", { length: 255 }).notNull(),
+  currentDeploymentId: varchar("current_deployment_id", {
+    length: 255,
+  }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const deployments = pgTable("deployments", {
   id: varchar("id", { length: 255 }).primaryKey(),
-  projectId: varchar("project_id", { length: 255 }).notNull(),
+  projectId: varchar("project_id", { length: 255 })
+    .notNull()
+    .references(() => projects.id),
   url: varchar("url", { length: 255 }).notNull(),
   status: deploymentStatusEnum("status").notNull(),
+  imageUrl: varchar("image_url", { length: 255 }),
+  serviceName: varchar("service_name", { length: 255 }),
+  taskDefinitionArn: varchar("task_definition_arn", { length: 255 }),
+  errorMessage: varchar("error_message", { length: 1024 }),
+  finishedAt: timestamp("finished_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
