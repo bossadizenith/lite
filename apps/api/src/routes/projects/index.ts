@@ -198,6 +198,26 @@ projectsRouter.get("/:deploymentId/logs", async (c) => {
         updatedAt: new Date(),
       })
       .where(eq(deployments.id, deploymentId));
+
+    if (dbStatus === "built") {
+      const [deploymentRecord] = await db
+        .select({
+          projectId: deployments.projectId,
+        })
+        .from(deployments)
+        .where(eq(deployments.id, deploymentId))
+        .limit(1);
+
+      if (deploymentRecord) {
+        await db
+          .update(projects)
+          .set({
+            currentDeploymentId: deploymentId,
+            updatedAt: new Date(),
+          })
+          .where(eq(projects.id, deploymentRecord.projectId));
+      }
+    }
   }
 
   return c.json({
@@ -278,6 +298,26 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
                 updatedAt: new Date(),
               })
               .where(eq(deployments.id, deploymentId));
+
+            if (dbStatus === "built") {
+              const [deploymentRecord] = await db
+                .select({
+                  projectId: deployments.projectId,
+                })
+                .from(deployments)
+                .where(eq(deployments.id, deploymentId))
+                .limit(1);
+
+              if (deploymentRecord) {
+                await db
+                  .update(projects)
+                  .set({
+                    currentDeploymentId: deploymentId,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(projects.id, deploymentRecord.projectId));
+              }
+            }
           }
 
           const parsedLogs = parseLogEvents(logs);
