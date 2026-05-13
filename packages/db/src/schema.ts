@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, timestamp, varchar, integer, jsonb } from "drizzle-orm/pg-core";
 
 export const deploymentStatusEnum = pgEnum("deployment_status", [
   "queued",
@@ -8,6 +8,11 @@ export const deploymentStatusEnum = pgEnum("deployment_status", [
   "deploying",
   "healthy",
   "failed",
+]);
+
+export const deploymentTypeEnum = pgEnum("deployment_type", [
+  "static",
+  "container",
 ]);
 
 export const projects = pgTable("projects", {
@@ -32,9 +37,13 @@ export const deployments = pgTable("deployments", {
     .references(() => projects.id),
   url: varchar("url", { length: 255 }).notNull(),
   status: deploymentStatusEnum("status").notNull(),
+  type: deploymentTypeEnum("type").default("static").notNull(),
   imageUrl: varchar("image_url", { length: 255 }),
   serviceName: varchar("service_name", { length: 255 }),
   taskDefinitionArn: varchar("task_definition_arn", { length: 255 }),
+  runtimePort: integer("runtime_port").default(3000),
+  healthCheckPath: varchar("health_check_path", { length: 255 }).default("/"),
+  envVars: jsonb("env_vars"),
   errorMessage: varchar("error_message", { length: 1024 }),
   finishedAt: timestamp("finished_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

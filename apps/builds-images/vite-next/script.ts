@@ -1,5 +1,6 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { exec } from "child_process";
+import { exec as execCallback } from "child_process";
+import { promisify } from "util";
 import fs from "fs";
 import { Redis } from "ioredis";
 import { lookup as lookupMime } from "mime-types";
@@ -11,6 +12,7 @@ import { detectFramework, type Framework } from "./framework-detection.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const execAsync = promisify(execCallback);
 
 const s3Client = new S3Client({
   region: String(process.env.AWS_REGION),
@@ -114,7 +116,7 @@ async function init() {
 
   await publishLog(`Building ${buildDescription} in ${appRoot}...`);
 
-  const p = exec("npm install && npm run build", { cwd: appRoot });
+  const p = execCallback("npm install && npm run build", { cwd: appRoot });
 
   if (p.stdout) {
     p.stdout.on("data", async function (data: Buffer) {
@@ -154,42 +156,48 @@ async function init() {
     }
 
     try {
-      const distFolderContents = fs.readdirSync(artifactDir, {
-        recursive: true,
-      }) as string[];
+      await publishLog("Packaging deployment artifacts...");
+      
+      const tarballName = `deployment-${DEPLOYMENT_ID}.tar.gz`;
+      const tarballPath = path.join(__dirname, tarballName);
 
-      await publishLog("Starting upload phase...");
-      for (const file of distFolderContents) {
-        const filePath = path.join(artifactDir, file);
-        if (fs.lstatSync(filePath).isDirectory()) continue;
+      // Create a tarball of the build output and necessary files
+      // We include everything except the output directory itself to avoid recursion
+      // For Next.js, we MUST have .next, node_modules, public, package.json
+      await execAsync(`tar --exclude='./output' --exclude='./${tarballName}' -czf ${tarballPath} .`, { cwd: appRoot });
 
-        console.log("uploading", filePath);
-        await publishLog(`Uploading ${file}`);
+      await publishLog(`Uploading deployment bundle: ${tarballName}`);
 
-        const command = new PutObjectCommand({
-          Bucket: "vercel-lite-clone",
-          Key: `__outputs/${PROJECT_ID}/${file}`,
-          Body: fs.createReadStream(filePath),
-          ContentType: lookupMime(file) || undefined,
-        });
+      const command = new PutObjectCommand({
+        Bucket: "vercel-lite-clone",
+        Key: `__deployments/${PROJECT_ID}/${tarballName}`,
+        Body: fs.createReadStream(tarballPath),
+        ContentType: "application/gzip",
+      });
 
-        await s3Client.send(command);
-        await publishLog(`Uploaded ${file}`, "success");
-        console.log("uploaded", filePath);
-      }
-      await publishLog("Deployment artifacts uploaded", "success");
+      await s3Client.send(command);
+      await publishLog("Deployment bundle uploaded successfully", "success");
+
       if (redis) {
         await redis.hset(DEPLOYMENT_KEY, {
           status: "success",
           finishedAt: Date.now().toString(),
+          artifactUrl: `s3://vercel-lite-clone/__deployments/${PROJECT_ID}/${tarballName}`,
+          deploymentType: framework === "nextjs" ? "container" : "static",
         });
       }
+      
+      // Cleanup local tarball
+      if (fs.existsSync(tarballPath)) {
+        fs.unlinkSync(tarballPath);
+      }
+
       console.log("Done...");
       process.exit(0);
     } catch (err) {
       const error = err as Error;
-      console.error("Upload failed", error);
-      await publishLog(`Upload failed: ${error.message}`, "error");
+      console.error("Packaging/Upload failed", error);
+      await publishLog(`Packaging/Upload failed: ${error.message}`, "error");
       await markDeploymentError();
       process.exit(1);
     }
