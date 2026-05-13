@@ -2,9 +2,10 @@ import "./utils/load-env.js";
 
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { db } from "@lite/db";
-import { projects } from "@lite/db/schema.js";
+import { projects, deployments } from "@lite/db/schema.js";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { proxy } from "hono/proxy";
 import { handle } from "hono/vercel";
 import { env } from "@lite/env/server.js";
 
@@ -77,14 +78,41 @@ app.all("*", async (c) => {
     return c.text("Project not found", 404);
   }
 
+  const deploymentId = project.currentDeploymentId;
+  if (!deploymentId) {
+    return c.text("No active deployment for this project", 404);
+  }
+
+  const deployment = await db.query.deployments.findFirst({
+    where: eq(deployments.id, deploymentId),
+  });
+
+  if (!deployment) {
+    return c.text("Active deployment not found", 404);
+  }
+
+  if (deployment.type === "container") {
+    const port = deployment.runtimePort || 3000;
+    const upstreamUrl = `http://${project.slug}.local:${port}${url.pathname}${url.search}`;
+
+    console.log(`Proxying to container: ${upstreamUrl}`);
+
+    try {
+      return proxy(upstreamUrl);
+    } catch (proxyErr) {
+      console.error("Upstream proxy error:", proxyErr);
+      return c.text("Service Unavailable", 503);
+    }
+  }
+
+  // --- STATIC S3 ROUTING (Legacy/Vite) ---
   let pathname = url.pathname;
   if (pathname === "/") {
     pathname = "/index.html";
   }
 
   const key = `__outputs/${project.slug}${pathname}`;
-
-  console.log(key);
+  console.log(`Fetching from S3: ${key}`);
 
   try {
     const res = await s3.send(
