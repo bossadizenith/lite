@@ -17,7 +17,7 @@ const s3Client = new S3Client({
   },
 });
 
-const ARTIFACT_URL = process.env.ARTIFACT_URL; // e.g. s3://bucket/__deployments/id.tar.gz
+const ARTIFACT_URL = process.env.ARTIFACT_URL;
 const APP_DIR = path.join(__dirname, "app");
 
 async function downloadAndExtract() {
@@ -28,7 +28,9 @@ async function downloadAndExtract() {
 
   const url = new URL(ARTIFACT_URL);
   const bucket = url.hostname;
-  const key = url.pathname.startsWith("/") ? url.pathname.slice(1) : url.pathname;
+  const key = url.pathname.startsWith("/")
+    ? url.pathname.slice(1)
+    : url.pathname;
 
   console.log(`Downloading artifact from s3://${bucket}/${key}...`);
 
@@ -36,7 +38,7 @@ async function downloadAndExtract() {
     new GetObjectCommand({
       Bucket: bucket,
       Key: key,
-    })
+    }),
   );
 
   if (!fs.existsSync(APP_DIR)) {
@@ -45,13 +47,13 @@ async function downloadAndExtract() {
 
   const tarballPath = path.join(__dirname, "artifact.tar.gz");
   const writer = fs.createWriteStream(tarballPath);
-  
+
   // @ts-ignore - Body is a stream in node
   response.Body.pipe(writer);
 
-  await new Promise((resolve, reject) => {
-    writer.on("finish", resolve);
-    writer.on("error", reject);
+  await new Promise<void>((resolve, reject) => {
+    writer.on("finish", () => resolve());
+    writer.on("error", (err) => reject(err));
   });
 
   console.log("Extracting artifact...");
@@ -64,10 +66,9 @@ async function downloadAndExtract() {
 async function startApp() {
   console.log("Starting application...");
 
-  // We assume the user has a start script or we default to 'npm start'
   const child = spawn("npm", ["start"], {
     cwd: APP_DIR,
-    stdio: "inherit", // Pipe logs to our stdout/stderr
+    stdio: "inherit",
     env: { ...process.env, PORT: process.env.PORT || "3000" },
   });
 

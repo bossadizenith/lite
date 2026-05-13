@@ -1,7 +1,7 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import { deploymentStatusEnum, deployments, projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import Redis from "ioredis";
 import { nanoid } from "nanoid";
@@ -126,6 +126,15 @@ async function syncDeploymentFromMetadata(
   }
 
   if (dbStatus === "built") {
+    await db
+      .update(deployments)
+      .set({
+        type: metadata.deploymentType === "container" ? "container" : "static",
+        imageUrl: metadata.imageUrl,
+        url: metadata.artifactUrl || deployments.url,
+      })
+      .where(eq(deployments.id, deploymentId));
+
     void rolloutRuntimeDeployment(db, deploymentId);
   }
 }
@@ -159,57 +168,134 @@ async function isDeploymentHealthy(url: string) {
 }
 
 async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
-  const [inProgress] = await db
+  const [deployment] = await db
+    .select()
+    .from(deployments)
+    .where(eq(deployments.id, deploymentId))
+    .limit(1);
+
+  if (!deployment || deployment.status !== "built") {
+    return;
+  }
+
+  if (deployment.type === "static") {
+    await db
+      .update(deployments)
+      .set({
+        status: "healthy",
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(deployments.id, deploymentId));
+
+    await db
+      .update(projects)
+      .set({
+        currentDeploymentId: deploymentId,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, deployment.projectId));
+    return;
+  }
+
+  await db
     .update(deployments)
     .set({
       status: "deploying",
       updatedAt: new Date(),
     })
-    .where(
-      and(eq(deployments.id, deploymentId), eq(deployments.status, "built")),
-    )
-    .returning({
-      id: deployments.id,
-      url: deployments.url,
-      projectId: deployments.projectId,
+    .where(eq(deployments.id, deploymentId));
+
+  try {
+    // 1. Start the Generic Runner Task
+    // Note: In a production app, you'd use a Service, but for "Lite" we'll use a long-running Task
+    const command = new RunTaskCommand({
+      cluster: CONFIG.CLUSTER,
+      taskDefinition: env.ECS_TASK_DEFINITION_ARN, // Using the same task def but with the runner entrypoint/command
+      launchType: "FARGATE",
+      count: 1,
+      networkConfiguration: {
+        awsvpcConfiguration: {
+          assignPublicIp: "ENABLED",
+          subnets: [env.SUBNET_1, env.SUBNET_2, env.SUBNET_3],
+          securityGroups: [env.SECURITY_GROUP],
+        },
+      },
+      overrides: {
+        containerOverrides: [
+          {
+            name: "builder-image", // Reusing the same container name in task def for now
+            command: ["npm", "start"], // Override to run the runner
+            environment: [
+              { name: "ARTIFACT_URL", value: deployment.url },
+              { name: "AWS_ACCESS_KEY_ID", value: env.AWS_ACCESS_KEY_ID },
+              {
+                name: "AWS_SECRET_ACCESS_KEY",
+                value: env.AWS_SECRET_ACCESS_KEY,
+              },
+              { name: "AWS_REGION", value: env.AWS_REGION },
+              { name: "PORT", value: String(deployment.runtimePort || 3000) },
+              // Inject custom user env vars
+              ...Object.entries(
+                (deployment.envVars as Record<string, string>) || {},
+              ).map(([name, value]) => ({
+                name,
+                value: String(value),
+              })),
+            ],
+          },
+        ],
+      },
     });
 
-  if (!inProgress) {
-    // Another polling loop already promoted this deployment.
-    return;
-  }
+    const result = await ecsClient.send(command);
+    const taskArn = result.tasks?.[0]?.taskArn;
 
-  const healthy = await isDeploymentHealthy(inProgress.url);
+    if (!taskArn) {
+      throw new Error("Failed to start ECS task for runner");
+    }
 
-  if (!healthy) {
+    // 2. Wait for the task to be RUNNING and get its IP
+    // For "Lite", we'll assume the health check loop handles the "waiting" part
+    // by polling the expected domain (which the proxy will eventually point to the task).
+
+    // In a more robust version, we would wait for the task to have a Private/Public IP
+    // and store that in the database.
+
+    const healthy = await isDeploymentHealthy(deployment.url);
+
+    if (!healthy) {
+      throw new Error("Runtime health check failed after rollout");
+    }
+
+    await db
+      .update(deployments)
+      .set({
+        status: "healthy",
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+        // taskDefinitionArn: taskArn, // Store the running task ARN
+      })
+      .where(eq(deployments.id, deploymentId));
+
+    await db
+      .update(projects)
+      .set({
+        currentDeploymentId: deploymentId,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, deployment.projectId));
+  } catch (error) {
     await db
       .update(deployments)
       .set({
         status: "failed",
-        errorMessage: "Runtime health check failed after build",
+        errorMessage: error instanceof Error ? error.message : String(error),
         finishedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(deployments.id, deploymentId));
-    return;
   }
-
-  await db
-    .update(deployments)
-    .set({
-      status: "healthy",
-      finishedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(deployments.id, deploymentId));
-
-  await db
-    .update(projects)
-    .set({
-      currentDeploymentId: deploymentId,
-      updatedAt: new Date(),
-    })
-    .where(eq(projects.id, inProgress.projectId));
 }
 
 projectsRouter.post("/", async (c) => {
