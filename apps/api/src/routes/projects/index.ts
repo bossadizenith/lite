@@ -207,11 +207,9 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     .where(eq(deployments.id, deploymentId));
 
   try {
-    // 1. Start the Generic Runner Task
-    // Note: In a production app, you'd use a Service, but for "Lite" we'll use a long-running Task
     const command = new RunTaskCommand({
       cluster: CONFIG.CLUSTER,
-      taskDefinition: env.ECS_TASK_DEFINITION_ARN, // Using the same task def but with the runner entrypoint/command
+      taskDefinition: env.ECS_TASK_DEFINITION_ARN,
       launchType: "FARGATE",
       count: 1,
       networkConfiguration: {
@@ -224,8 +222,8 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
       overrides: {
         containerOverrides: [
           {
-            name: "builder-image", // Reusing the same container name in task def for now
-            command: ["npm", "start"], // Override to run the runner
+            name: "builder-image",
+            command: ["npm", "start"],
             environment: [
               { name: "ARTIFACT_URL", value: deployment.url },
               { name: "AWS_ACCESS_KEY_ID", value: env.AWS_ACCESS_KEY_ID },
@@ -235,7 +233,6 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
               },
               { name: "AWS_REGION", value: env.AWS_REGION },
               { name: "PORT", value: String(deployment.runtimePort || 3000) },
-              // Inject custom user env vars
               ...Object.entries(
                 (deployment.envVars as Record<string, string>) || {},
               ).map(([name, value]) => ({
@@ -254,13 +251,6 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     if (!taskArn) {
       throw new Error("Failed to start ECS task for runner");
     }
-
-    // 2. Wait for the task to be RUNNING and get its IP
-    // For "Lite", we'll assume the health check loop handles the "waiting" part
-    // by polling the expected domain (which the proxy will eventually point to the task).
-
-    // In a more robust version, we would wait for the task to have a Private/Public IP
-    // and store that in the database.
 
     const healthy = await isDeploymentHealthy(deployment.url);
 

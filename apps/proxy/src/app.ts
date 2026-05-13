@@ -105,7 +105,6 @@ app.all("*", async (c) => {
     }
   }
 
-  // --- STATIC S3 ROUTING (Legacy/Vite) ---
   let pathname = url.pathname;
   if (pathname === "/") {
     pathname = "/index.html";

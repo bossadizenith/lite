@@ -13,3 +13,11 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
 
 - moving off s3 to use container based deployments.
 - updated the [schema](/packages/db/src/schema.ts) and the [api route](/apps/api/src/routes/projects/index.ts) so they both match the new use case we're trying to attain.
+
+  13.05.26
+
+- database: Updated the schema to support static vs container deployments and store runtime settings (ports, env vars).
+- builder: Refactored to produce a high-performance S3 tarball instead of individual file uploads.
+- generic runner: Built a lightweight Node.js container that pulls your S3 artifacts and runs npm start.
+- api orchestration: Taught the API to launch these runners and inject your environment variables at runtime.
+- smart proxy: Upgraded the proxy to automatically route traffic either to S3 (for static sites) or to the internal runner (for Next.js apps).
