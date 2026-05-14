@@ -102,12 +102,12 @@ export const Logs = ({ deploymentId }: LogsProps) => {
           </a>
         </p>
       ) : null}
-      <div className="max-h-[380px] overflow-auto rounded bg-black p-3 font-mono text-sm text-white">
+      <div className="max-h-[380px] overflow-auto rounded bg-background p-3 font-mono text-sm text-white">
         {logs.length === 0 ? (
           <p className="text-zinc-400">No logs yet...</p>
         ) : (
           logs.map((log) => (
-            <p key={log.id} className="break-words">
+            <p key={log.id} className="wrap-break-words">
               [{new Date(log.timestamp).toLocaleTimeString()}] [{log.level}]{" "}
               {log.message}
             </p>

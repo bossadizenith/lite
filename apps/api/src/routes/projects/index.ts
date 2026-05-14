@@ -496,9 +496,11 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
         controller.close();
       };
 
-      const send = (data: unknown) => {
+      const send = (event: string, data: unknown) => {
         if (controllerClosed || closed) return;
-        controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+        );
       };
 
       const tick = async () => {
@@ -519,13 +521,12 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
           for (const logEvent of parsedLogs) {
             if (sentLogIds.has(logEvent.id)) continue;
             sentLogIds.add(logEvent.id);
-            send(logEvent);
+            send("log", logEvent);
           }
 
-          send({ type: "deployment", ...deployment });
+          send("deployment", deployment);
         } catch (error) {
-          send({
-            type: "error",
+          send("error", {
             message: "Failed to stream logs",
             error: error instanceof Error ? error.message : String(error),
           });
@@ -536,7 +537,7 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
         }
       };
 
-      send({ type: "connected", deploymentId });
+      send("connected", { deploymentId });
       void tick();
     },
     cancel() {
