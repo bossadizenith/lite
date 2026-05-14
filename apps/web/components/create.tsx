@@ -21,6 +21,9 @@ export const Create = () => {
   const [deploymentId, setDeploymentId] = React.useState<string | null>(null);
   const form = useForm<CreateProjectSchema>({
     resolver: zodResolver(createProjectSchema),
+    defaultValues: {
+      repoUrl: "https://github.com/bossadizenith/test-repo",
+    },
   });
   const { mutate: createProject, isPending } = useMutation({
     mutationFn: PROJECTS_QUERY.create,

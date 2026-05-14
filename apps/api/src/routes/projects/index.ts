@@ -1,7 +1,7 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import { deploymentStatusEnum, deployments, projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import Redis from "ioredis";
 import { nanoid } from "nanoid";
@@ -390,14 +390,41 @@ projectsRouter.get("/:deploymentId/logs", async (c) => {
     return c.json({ error: "Redis is not configured" }, 500);
   }
 
-  const deploymentId = c.req.param("deploymentId");
+  const idParam = c.req.param("deploymentId");
+  let deploymentId = idParam;
+
+  const projectWithLatest = await db.query.projects.findFirst({
+    where: eq(projects.slug, idParam),
+  });
+
+  if (projectWithLatest) {
+    const [latest] = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.projectId, projectWithLatest.id))
+      .orderBy(desc(deployments.createdAt))
+      .limit(1);
+
+    if (latest) {
+      deploymentId = latest.id;
+    }
+  }
+
   const logsKey = `logs:${deploymentId}`;
   const deploymentKey = `deployment:${deploymentId}`;
+
+  console.log(
+    `[API DEBUG] Fetching logs for key: ${logsKey} (URL: ${env.REDIS_URL.split("@")[1] || "hidden"})`,
+  );
 
   const [logs, metadata] = await Promise.all([
     redis.lrange(logsKey, 0, -1),
     redis.hgetall(deploymentKey),
   ]);
+
+  console.log(
+    `[API DEBUG] Found ${logs.length} logs in Redis for ${deploymentId}`,
+  );
 
   await syncDeploymentFromMetadata(db, deploymentId, metadata);
 
@@ -414,7 +441,33 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
     return c.json({ error: "Redis is not configured" }, 500);
   }
 
-  const deploymentId = c.req.param("deploymentId");
+  console.log(
+    "[API DEBUG] Starting log stream for deployment",
+    c.req.param("deploymentId"),
+  );
+
+  const idParam = c.req.param("deploymentId");
+  let deploymentId = idParam;
+
+  const projectWithLatest = await db.query.projects.findFirst({
+    where: eq(projects.slug, idParam),
+  });
+
+  if (projectWithLatest) {
+    const [latest] = await db
+      .select()
+      .from(deployments)
+      .where(eq(deployments.projectId, projectWithLatest.id))
+      .orderBy(desc(deployments.createdAt))
+      .limit(1);
+
+    if (latest) {
+      deploymentId = latest.id;
+    }
+  }
+
+  console.log(deploymentId);
+
   const logsKey = `logs:${deploymentId}`;
   const deploymentKey = `deployment:${deploymentId}`;
   const encoder = new TextEncoder();
@@ -443,11 +496,9 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
         controller.close();
       };
 
-      const send = (event: string, data: unknown) => {
+      const send = (data: unknown) => {
         if (controllerClosed || closed) return;
-        controller.enqueue(
-          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-        );
+        controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
       };
 
       const tick = async () => {
@@ -468,12 +519,13 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
           for (const logEvent of parsedLogs) {
             if (sentLogIds.has(logEvent.id)) continue;
             sentLogIds.add(logEvent.id);
-            send("log", logEvent);
+            send(logEvent);
           }
 
-          send("deployment", deployment);
+          send({ type: "deployment", ...deployment });
         } catch (error) {
-          send("error", {
+          send({
+            type: "error",
             message: "Failed to stream logs",
             error: error instanceof Error ? error.message : String(error),
           });
@@ -484,7 +536,7 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
         }
       };
 
-      send("connected", { deploymentId });
+      send({ type: "connected", deploymentId });
       void tick();
     },
     cancel() {

@@ -1,14 +1,11 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { exec as execCallback } from "child_process";
-import { promisify } from "util";
+import { exec as execCallback, spawn } from "child_process";
 import fs from "fs";
 import { Redis } from "ioredis";
-import { lookup as lookupMime } from "mime-types";
 import path from "path";
 import { fileURLToPath } from "url";
+import { promisify } from "util";
 import { detectFramework, type Framework } from "./framework-detection.js";
-
-// Just thinking of how the next deployment works is going to work like.
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,7 +27,19 @@ const DEPLOYMENT_KEY = `deployment:${DEPLOYMENT_ID}`;
 const MAX_LOG_EVENTS = 1000;
 const LOG_TTL_SECONDS = 60 * 60;
 
-const redis = REDIS_URL ? new Redis(String(REDIS_URL)) : null;
+const redis = REDIS_URL
+  ? new Redis(String(REDIS_URL), {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 5000,
+    })
+  : null;
+
+if (redis) {
+  redis.on("error", (err) => {
+    console.error("Redis Client Error:", err);
+  });
+}
+
 let logSequence = 0;
 
 function createLogEvent(message: string, level = "info", source = "build") {
@@ -59,14 +68,17 @@ async function publishLog(message: string, level = "info", source = "build") {
 
   console.log(`[LOG]-${DEPLOYMENT_ID}: ${payload}`);
 
-  if (!redis) {
-    return;
-  }
+  if (!redis) return;
 
-  await redis.rpush(LOGS_KEY, payload);
-  await redis.publish(LOGS_KEY, payload);
-  await redis.ltrim(LOGS_KEY, -MAX_LOG_EVENTS, -1);
-  await redis.expire(LOGS_KEY, LOG_TTL_SECONDS);
+  try {
+    await Promise.all([
+      redis.rpush(LOGS_KEY, payload),
+      redis.publish(LOGS_KEY, payload),
+    ]);
+    await redis.expire(LOGS_KEY, LOG_TTL_SECONDS);
+  } catch (err) {
+    console.error("Failed to push log to Redis:", err);
+  }
 }
 
 async function init() {
@@ -116,21 +128,36 @@ async function init() {
 
   await publishLog(`Building ${buildDescription} in ${appRoot}...`);
 
-  const p = execCallback("npm install && npm run build", { cwd: appRoot });
+  const p = spawn("npm install && npm run build", {
+    cwd: appRoot,
+    shell: true,
+    env: { ...process.env, FORCE_COLOR: "1" },
+  });
 
   if (p.stdout) {
     p.stdout.on("data", async function (data: Buffer) {
-      console.log(data.toString());
-      await publishLog(data.toString().trim());
+      const message = data.toString().trim();
+      if (message) {
+        console.log(message);
+        await publishLog(message);
+      }
     });
   }
 
   if (p.stderr) {
     p.stderr.on("data", async function (data: Buffer) {
-      console.log("Error", data.toString());
-      await publishLog(data.toString().trim(), "error");
+      const message = data.toString().trim();
+      if (message) {
+        console.error("Error", message);
+        await publishLog(message, "error");
+      }
     });
   }
+
+  p.on("error", async (err) => {
+    console.error("Process Error:", err);
+    await publishLog(`Failed to start build process: ${err.message}`, "error");
+  });
 
   p.on("close", async function (code: number | null) {
     if (code !== 0) {
@@ -157,14 +184,17 @@ async function init() {
 
     try {
       await publishLog("Packaging deployment artifacts...");
-      
+
       const tarballName = `deployment-${DEPLOYMENT_ID}.tar.gz`;
       const tarballPath = path.join(__dirname, tarballName);
 
       // Create a tarball of the build output and necessary files
       // We include everything except the output directory itself to avoid recursion
       // For Next.js, we MUST have .next, node_modules, public, package.json
-      await execAsync(`tar --exclude='./output' --exclude='./${tarballName}' -czf ${tarballPath} .`, { cwd: appRoot });
+      await execAsync(
+        `tar --exclude='./output' --exclude='./${tarballName}' -czf ${tarballPath} .`,
+        { cwd: appRoot },
+      );
 
       await publishLog(`Uploading deployment bundle: ${tarballName}`);
 
@@ -186,8 +216,7 @@ async function init() {
           deploymentType: framework === "nextjs" ? "container" : "static",
         });
       }
-      
-      // Cleanup local tarball
+
       if (fs.existsSync(tarballPath)) {
         fs.unlinkSync(tarballPath);
       }
@@ -208,8 +237,6 @@ init().catch(async (err) => {
   console.error("Initial execution failed", err);
   try {
     await markDeploymentError();
-  } catch {
-    /* ignore secondary failures */
-  }
+  } catch {}
   process.exit(1);
 });
