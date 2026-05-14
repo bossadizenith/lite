@@ -21,3 +21,7 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
 - generic runner: Built a lightweight Node.js container that pulls your S3 artifacts and runs npm start.
 - api orchestration: Taught the API to launch these runners and inject your environment variables at runtime.
 - smart proxy: Upgraded the proxy to automatically route traffic either to S3 (for static sites) or to the internal runner (for Next.js apps).
+
+  14.05.26
+
+- fixing the log streaming from the build-server on aws to the ui.

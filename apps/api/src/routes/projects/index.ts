@@ -206,6 +206,8 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     })
     .where(eq(deployments.id, deploymentId));
 
+  console.log(deployment);
+
   try {
     const command = new RunTaskCommand({
       cluster: CONFIG.CLUSTER,
@@ -264,7 +266,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
         status: "healthy",
         finishedAt: new Date(),
         updatedAt: new Date(),
-        // taskDefinitionArn: taskArn, // Store the running task ARN
+        taskDefinitionArn: taskArn,
       })
       .where(eq(deployments.id, deploymentId));
 
