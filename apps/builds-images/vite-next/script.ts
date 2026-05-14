@@ -124,7 +124,7 @@ async function init() {
   const buildDescription =
     framework === "vite"
       ? "Vite (output: dist/)"
-      : "Next.js static export (output: out/ — set output: 'export' in next.config)";
+      : "Next.js (output: .next/ or out/)";
 
   await publishLog(`Building ${buildDescription} in ${appRoot}...`);
 
@@ -170,12 +170,21 @@ async function init() {
     console.log("Build Complete");
     await publishLog("Build complete", "success");
 
-    if (!fs.existsSync(artifactDir)) {
-      const nextHint =
-        framework === "nextjs"
-          ? " For full SSR use a container runtime; for static hosting add output: 'export' to next.config so `out/` is produced."
-          : "";
-      const errorMsg = `Error: Build output not found at ${artifactDir}.${nextHint}`;
+    let isBuildValid = false;
+
+    if (framework === "vite" && fs.existsSync(path.join(appRoot, "dist"))) {
+      isBuildValid = true;
+    } else if (framework === "nextjs") {
+      const hasOut = fs.existsSync(path.join(appRoot, "out"));
+      const hasDotNext = fs.existsSync(path.join(appRoot, ".next"));
+      if (hasOut || hasDotNext) {
+        isBuildValid = true;
+      }
+    }
+
+    if (!isBuildValid) {
+      const expectedOut = framework === "vite" ? "dist/" : ".next/ or out/";
+      const errorMsg = `Error: Build output not found. Expected ${expectedOut} to be produced.`;
       console.error(errorMsg);
       await publishLog(errorMsg, "error");
       await markDeploymentError();

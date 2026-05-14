@@ -144,24 +144,28 @@ function sleep(ms: number) {
 }
 
 async function isDeploymentHealthy(url: string) {
-  for (let i = 0; i < HEALTHCHECK_ATTEMPTS; i += 1) {
+  for (let i = 0; i < 30; i += 1) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
-      const response = await fetch(`https://${url}`, {
-        method: "GET",
-        signal: controller.signal,
-      });
+
+      let response = await fetch(`https://${url}`).catch(() =>
+        fetch(`http://${url}`, { signal: controller.signal }),
+      );
+
       clearTimeout(timeout);
 
-      if (response.ok || response.status === 301 || response.status === 302) {
+      if (
+        response &&
+        (response.ok || response.status === 301 || response.status === 302)
+      ) {
         return true;
       }
     } catch {
       /* probe retries below */
     }
 
-    await sleep(HEALTHCHECK_DELAY_MS);
+    await sleep(2000);
   }
 
   return false;
@@ -224,7 +228,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
       overrides: {
         containerOverrides: [
           {
-            name: "builder-image",
+            name: "runner",
             command: ["npm", "start"],
             environment: [
               { name: "ARTIFACT_URL", value: deployment.url },
