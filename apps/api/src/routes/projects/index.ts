@@ -33,6 +33,7 @@ const ecsClient = new ECSClient({
 const CONFIG = {
   CLUSTER: env.ECS_CLUSTER_ARN,
   TASK: env.ECS_TASK_DEFINITION_ARN,
+  RUNNER_TASK: env.RUNNER_ECS_TASK_DEFINITION_ARN,
 };
 
 const redis = new Redis(env.REDIS_URL);
@@ -88,6 +89,21 @@ async function syncDeploymentFromMetadata(
 ) {
   const dbStatus = toDeploymentDbStatus(metadata.status);
   if (!dbStatus) return;
+
+  const [current] = await db
+    .select({ status: deployments.status })
+    .from(deployments)
+    .where(eq(deployments.id, deploymentId))
+    .limit(1);
+
+  if (!current) return;
+  if (
+    current.status === "deploying" ||
+    current.status === "healthy" ||
+    current.status === dbStatus
+  ) {
+    return;
+  }
 
   const isTerminal =
     dbStatus === "built" || dbStatus === "healthy" || dbStatus === "failed";
@@ -215,7 +231,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
   try {
     const command = new RunTaskCommand({
       cluster: CONFIG.CLUSTER,
-      taskDefinition: env.ECS_TASK_DEFINITION_ARN,
+      taskDefinition: CONFIG.RUNNER_TASK,
       launchType: "FARGATE",
       count: 1,
       networkConfiguration: {

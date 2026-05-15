@@ -16,6 +16,7 @@ export const env = createEnvCore({
     REDIS_URL: z.string(),
     ECS_CLUSTER_ARN: z.string(),
     ECS_TASK_DEFINITION_ARN: z.string(),
+    RUNNER_ECS_TASK_DEFINITION_ARN: z.string(),
     SUBNET_1: z.string(),
     SUBNET_2: z.string(),
     SUBNET_3: z.string(),
