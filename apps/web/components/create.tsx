@@ -127,7 +127,15 @@ const Envs = ({
       const parsed = lines.map((line) => {
         const firstEquals = line.indexOf("=");
         const key = line.substring(0, firstEquals).trim();
-        const value = line.substring(firstEquals + 1).trim();
+        let value = line.substring(firstEquals + 1).trim();
+
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
+          value = value.substring(1, value.length - 1);
+        }
+
         return { key, value };
       });
 
