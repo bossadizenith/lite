@@ -197,12 +197,17 @@ async function init() {
       const tarballName = `deployment-${DEPLOYMENT_ID}.tar.gz`;
       const tarballPath = path.join(__dirname, tarballName);
 
-      // Create a tarball of the build output and necessary files
-      // We include everything except the output directory itself to avoid recursion
-      // For Next.js, we MUST have .next, node_modules, public, package.json
+      // Write lite.json metadata so the runner knows which subdirectory to start from
+      const liteMetaPath = path.join(outDirPath, "lite.json");
+      fs.writeFileSync(
+        liteMetaPath,
+        JSON.stringify({ rootDir: results.rootDir }),
+        "utf-8",
+      );
+
       await execAsync(
-        `tar --exclude='./output' --exclude='./${tarballName}' -czf ${tarballPath} .`,
-        { cwd: appRoot },
+        `tar --exclude='./${tarballName}' -czf ${tarballPath} .`,
+        { cwd: outDirPath },
       );
 
       await publishLog(`Uploading deployment bundle: ${tarballName}`);
