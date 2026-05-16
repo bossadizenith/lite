@@ -1,0 +1,1 @@
+ALTER TABLE "deployments" ADD COLUMN "ip_address" varchar(255);

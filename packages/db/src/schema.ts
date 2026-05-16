@@ -44,6 +44,7 @@ export const deployments = pgTable("deployments", {
   runtimePort: integer("runtime_port").default(3000),
   healthCheckPath: varchar("health_check_path", { length: 255 }).default("/"),
   envVars: jsonb("env_vars"),
+  ipAddress: varchar("ip_address", { length: 255 }),
   errorMessage: varchar("error_message", { length: 1024 }),
   finishedAt: timestamp("finished_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

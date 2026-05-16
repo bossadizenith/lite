@@ -1,4 +1,5 @@
-import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
+import { ECSClient, RunTaskCommand, DescribeTasksCommand } from "@aws-sdk/client-ecs";
+import { EC2Client, DescribeNetworkInterfacesCommand } from "@aws-sdk/client-ec2";
 import { deploymentStatusEnum, deployments, projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
 import { desc, eq } from "drizzle-orm";
@@ -23,6 +24,14 @@ const projectBodySchema = z.object({
 });
 
 const ecsClient = new ECSClient({
+  region: env.AWS_REGION,
+  credentials: {
+    accessKeyId: env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+
+const ec2Client = new EC2Client({
   region: env.AWS_REGION,
   credentials: {
     accessKeyId: env.AWS_ACCESS_KEY_ID,
@@ -274,7 +283,51 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
       throw new Error("Failed to start ECS task for runner");
     }
 
-    const healthy = await isDeploymentHealthy(deployment.url);
+    let eniId = "";
+    // Wait up to 2 minutes for the task to reach RUNNING state to get the ENI
+    for (let i = 0; i < 60; i++) {
+      await sleep(2000);
+      const describeTask = new DescribeTasksCommand({
+        cluster: CONFIG.CLUSTER,
+        tasks: [taskArn],
+      });
+      const taskDetails = await ecsClient.send(describeTask);
+      const taskInfo = taskDetails.tasks?.[0];
+
+      if (taskInfo?.lastStatus === "RUNNING") {
+        const eniDetail = taskInfo.attachments?.[0]?.details?.find(
+          (d) => d.name === "networkInterfaceId",
+        );
+        if (eniDetail && eniDetail.value) {
+          eniId = eniDetail.value;
+          break;
+        }
+      } else if (taskInfo?.lastStatus === "STOPPED") {
+        throw new Error("Task stopped before reaching RUNNING state");
+      }
+    }
+
+    if (!eniId) {
+      throw new Error("Failed to retrieve ENI for the running task");
+    }
+
+    // Now query EC2 for the Public IP
+    const describeNetwork = new DescribeNetworkInterfacesCommand({
+      NetworkInterfaceIds: [eniId],
+    });
+    const networkDetails = await ec2Client.send(describeNetwork);
+    const publicIp =
+      networkDetails.NetworkInterfaces?.[0]?.Association?.PublicIp;
+
+    if (!publicIp) {
+      throw new Error("Failed to retrieve Public IP for the ENI");
+    }
+
+    const port = deployment.runtimePort || 3000;
+    const ipUrl = `${publicIp}:${port}`;
+    console.log(`Pinging ECS Public IP: ${ipUrl}`);
+
+    const healthy = await isDeploymentHealthy(ipUrl);
 
     if (!healthy) {
       throw new Error("Runtime health check failed after rollout");
@@ -284,6 +337,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
       .update(deployments)
       .set({
         status: "healthy",
+        ipAddress: publicIp,
         finishedAt: new Date(),
         updatedAt: new Date(),
         taskDefinitionArn: taskArn,
