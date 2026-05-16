@@ -1,5 +1,12 @@
 import { relations } from "drizzle-orm";
-import { pgEnum, pgTable, timestamp, varchar, integer, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgEnum,
+  pgTable,
+  timestamp,
+  varchar,
+  integer,
+  jsonb,
+} from "drizzle-orm/pg-core";
 
 export const deploymentStatusEnum = pgEnum("deployment_status", [
   "queued",
