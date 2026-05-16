@@ -9,7 +9,13 @@ import { Input } from "@lite/ui/components/input";
 import { LoadingButton } from "@lite/ui/components/loading-button";
 import { useMutation } from "@tanstack/react-query";
 import React from "react";
-import { Controller, useForm } from "react-hook-form";
+import {
+  Controller,
+  useForm,
+  useFieldArray,
+  Control,
+  UseFormRegister,
+} from "react-hook-form";
 import { toast } from "sonner";
 
 export const Create = () => {
@@ -76,7 +82,7 @@ export const Create = () => {
           </LoadingButton>
         </div>
 
-        <Envs />
+        <Envs control={form.control} register={form.register} />
       </form>
       {deploymentId ? (
         <div className="w-full max-w-3xl">
@@ -87,17 +93,108 @@ export const Create = () => {
   );
 };
 
-const Envs = () => {
+const Envs = ({
+  control,
+  register,
+}: {
+  control: Control<CreateProjectSchema>;
+  register: UseFormRegister<CreateProjectSchema>;
+}) => {
+  const { fields, append, update, remove } = useFieldArray({
+    control,
+    name: "envVars",
+  });
+
+  React.useEffect(() => {
+    if (fields.length === 0) {
+      append({ key: "", value: "" });
+    }
+  }, [fields.length, append]);
+
+  const handlePaste = (
+    e: React.ClipboardEvent<HTMLInputElement>,
+    index: number,
+  ) => {
+    const pastedText = e.clipboardData.getData("text/plain");
+    if (!pastedText.includes("=")) return;
+
+    e.preventDefault();
+    const lines = pastedText
+      .split(/\r?\n/)
+      .filter((line) => line.trim() && line.includes("="));
+
+    if (lines.length > 0) {
+      const parsed = lines.map((line) => {
+        const firstEquals = line.indexOf("=");
+        const key = line.substring(0, firstEquals).trim();
+        const value = line.substring(firstEquals + 1).trim();
+        return { key, value };
+      });
+
+      update(index, parsed[0]!);
+
+      if (parsed.length > 1) {
+        append(parsed.slice(1));
+      }
+    }
+  };
+
   return (
     <div className="space-y-2">
       <h1 className="text-sm">Environment Variables</h1>
-      <div>
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="flex gap-2">
-            <input type="text" placeholder="key" />
-            <input type="text" placeholder="value" />
-          </div>
-        ))}
+      <div className="space-y-2">
+        {fields.map((field, index) => {
+          const keyReg = register(`envVars.${index}.key`);
+          const valReg = register(`envVars.${index}.value`);
+          return (
+            <div key={field.id} className="flex gap-2 items-center group">
+              <Input
+                {...keyReg}
+                placeholder="Key"
+                onPaste={(e) => handlePaste(e, index)}
+                onChange={(e) => {
+                  keyReg.onChange(e);
+                  if (index === fields.length - 1 && e.target.value) {
+                    append({ key: "", value: "" });
+                  }
+                }}
+              />
+              <Input
+                {...valReg}
+                placeholder="Value"
+                onPaste={(e) => handlePaste(e, index)}
+                onChange={(e) => {
+                  valReg.onChange(e);
+                  if (index === fields.length - 1 && e.target.value) {
+                    append({ key: "", value: "" });
+                  }
+                }}
+              />
+              {fields.length > 1 && index < fields.length - 1 && (
+                <button
+                  type="button"
+                  onClick={() => remove(index)}
+                  className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 15 15"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z"
+                      fill="currentColor"
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                    ></path>
+                  </svg>
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

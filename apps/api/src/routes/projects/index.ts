@@ -451,6 +451,12 @@ projectsRouter.post("/", async (c) => {
             { name: "AWS_SECRET_ACCESS_KEY", value: env.AWS_SECRET_ACCESS_KEY },
             { name: "AWS_REGION", value: env.AWS_REGION },
             { name: "REDIS_URL", value: env.REDIS_URL },
+            ...Object.entries(
+              (envVarsRecord as Record<string, string>) || {},
+            ).map(([name, value]) => ({
+              name,
+              value: String(value),
+            })),
           ],
         },
       ],
