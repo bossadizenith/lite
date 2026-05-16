@@ -28,6 +28,14 @@ projectsRouter.get("/", async (c) => {
 const projectBodySchema = z.object({
   repoUrl: z.string(),
   slug: z.string().optional(),
+  envVars: z
+    .array(
+      z.object({
+        key: z.string(),
+        value: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 const ecsClient = new ECSClient({
@@ -386,7 +394,11 @@ projectsRouter.post("/", async (c) => {
     return c.json({ error: validated.error.issues }, 400);
   }
 
-  const { repoUrl, slug } = validated.data;
+  const { repoUrl, slug, envVars } = validated.data;
+
+  const envVarsRecord =
+    envVars?.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}) ||
+    {};
 
   const finalSlug = slug ?? generateSlug();
   const name = repoUrl.split("/").pop() ?? finalSlug;
@@ -404,6 +416,7 @@ projectsRouter.post("/", async (c) => {
       name,
       subDomain: finalSlug,
       customDomain: "",
+      envVars: envVarsRecord,
     })
     .returning();
 
