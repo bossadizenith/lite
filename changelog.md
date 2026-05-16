@@ -25,3 +25,8 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
   14.05.26
 
 - fixing the log streaming from the build-server on aws to the ui.
+
+  16.05.26
+
+- made the first succesful nextjs deployment on vercel lite clone!
+- bundle the entire project root into a tarball
