@@ -1,5 +1,12 @@
-import { ECSClient, RunTaskCommand, DescribeTasksCommand } from "@aws-sdk/client-ecs";
-import { EC2Client, DescribeNetworkInterfacesCommand } from "@aws-sdk/client-ec2";
+import {
+  ECSClient,
+  RunTaskCommand,
+  DescribeTasksCommand,
+} from "@aws-sdk/client-ecs";
+import {
+  EC2Client,
+  DescribeNetworkInterfacesCommand,
+} from "@aws-sdk/client-ec2";
 import { deploymentStatusEnum, deployments, projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
 import { desc, eq } from "drizzle-orm";
@@ -284,7 +291,6 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     }
 
     let eniId = "";
-    // Wait up to 2 minutes for the task to reach RUNNING state to get the ENI
     for (let i = 0; i < 60; i++) {
       await sleep(2000);
       const describeTask = new DescribeTasksCommand({
