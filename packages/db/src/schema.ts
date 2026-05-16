@@ -26,6 +26,7 @@ export const projects = pgTable("projects", {
   currentDeploymentId: varchar("current_deployment_id", {
     length: 255,
   }),
+  envVars: jsonb("env_vars"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -43,7 +44,6 @@ export const deployments = pgTable("deployments", {
   taskDefinitionArn: varchar("task_definition_arn", { length: 255 }),
   runtimePort: integer("runtime_port").default(3000),
   healthCheckPath: varchar("health_check_path", { length: 255 }).default("/"),
-  envVars: jsonb("env_vars"),
   ipAddress: varchar("ip_address", { length: 255 }),
   errorMessage: varchar("error_message", { length: 1024 }),
   finishedAt: timestamp("finished_at"),

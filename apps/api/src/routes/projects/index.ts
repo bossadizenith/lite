@@ -204,11 +204,18 @@ async function isDeploymentHealthy(url: string) {
 }
 
 async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
-  const [deployment] = await db
-    .select()
+  const [resultRecord] = await db
+    .select({
+      deployment: deployments,
+      project: projects,
+    })
     .from(deployments)
+    .innerJoin(projects, eq(projects.id, deployments.projectId))
     .where(eq(deployments.id, deploymentId))
     .limit(1);
+
+  const deployment = resultRecord?.deployment;
+  const project = resultRecord?.project;
 
   if (!deployment || deployment.status !== "built") {
     return;
@@ -272,7 +279,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
               { name: "AWS_REGION", value: env.AWS_REGION },
               { name: "PORT", value: String(deployment.runtimePort || 3000) },
               ...Object.entries(
-                (deployment.envVars as Record<string, string>) || {},
+                (project.envVars as Record<string, string>) || {},
               ).map(([name, value]) => ({
                 name,
                 value: String(value),
