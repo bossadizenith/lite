@@ -181,9 +181,9 @@ async function isDeploymentHealthy(url: string) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
 
-      let response = await fetch(`https://${url}`).catch(() =>
-        fetch(`http://${url}`, { signal: controller.signal }),
-      );
+      let response = await fetch(`https://${url}`, {
+        signal: controller.signal,
+      }).catch(() => fetch(`http://${url}`, { signal: controller.signal }));
 
       clearTimeout(timeout);
 
