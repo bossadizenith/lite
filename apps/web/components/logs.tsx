@@ -62,6 +62,17 @@ export const Logs = ({ deploymentId }: LogsProps) => {
             | undefined;
           if (!payload) return;
           setDeployment(payload);
+
+          const terminalStatuses = ["success", "error", "failed", "healthy"];
+          if (terminalStatuses.includes(payload.status ?? "")) {
+            setIsConnected(false);
+            eventSource?.close();
+          }
+        });
+
+        eventSource.addEventListener("done", () => {
+          setIsConnected(false);
+          eventSource?.close();
         });
 
         eventSource.onerror = () => {

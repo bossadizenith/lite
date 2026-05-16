@@ -633,6 +633,14 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
           }
 
           send("deployment", deployment);
+
+          const terminalStatuses = ["success", "error", "failed", "healthy"];
+          if (terminalStatuses.includes(deployment?.status)) {
+            send("done", { status: deployment.status });
+            markClosed();
+            safelyCloseController();
+            return;
+          }
         } catch (error) {
           send("error", {
             message: "Failed to stream logs",
