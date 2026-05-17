@@ -30,3 +30,7 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
 
 - made the first succesful nextjs deployment on vercel lite clone!
 - bundle the entire project root into a tarball
+
+  17.05.26
+
+- i think i found the issue with the runner not using the lastest image push. (it was simply because of my stupidness, i used image sha rather than image tag(latest) and the sha was tied to one image which was the first image i pushed to the runner repo)
