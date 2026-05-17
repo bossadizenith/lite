@@ -9,6 +9,7 @@ type LogsProps = {
 };
 
 const API_BASE_URL = `${env.NEXT_PUBLIC_BACKEND_URL}/api`;
+const isDev = process.env.NODE_ENV === "development";
 
 export const Logs = ({ deploymentId }: LogsProps) => {
   const [logs, setLogs] = React.useState<LogEvent[]>([]);
@@ -17,7 +18,9 @@ export const Logs = ({ deploymentId }: LogsProps) => {
   const ref = React.useRef<HTMLDivElement>(null);
   const isSuccess = deployment.status === "success";
   const liveDemoHost = `${deploymentId}.localhoststories.dev`;
-  const liveDemoUrl = `https://${liveDemoHost}`;
+  const liveDemoUrl = isDev
+    ? `http://${liveDemoHost}.localhost:8000`
+    : `https://${liveDemoHost}`;
 
   React.useEffect(() => {
     if (ref.current) {

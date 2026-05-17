@@ -93,8 +93,11 @@ async function startApp() {
   });
 }
 
+const BUILD_TIME = new Date().toISOString();
+
 async function main() {
   try {
+    console.log(`[runner] starting — build: ${BUILD_TIME}`);
     await downloadAndExtract();
     await startApp();
   } catch (error) {
