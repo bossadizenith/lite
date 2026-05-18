@@ -19,7 +19,7 @@ export const Logs = ({ deploymentId }: LogsProps) => {
   const isSuccess = deployment.status === "success";
   const liveDemoHost = `${deploymentId}.localhoststories.dev`;
   const liveDemoUrl = isDev
-    ? `http://${liveDemoHost}.localhost:8000`
+    ? `http://${deploymentId}.localhost:8000`
     : `https://${liveDemoHost}`;
 
   React.useEffect(() => {
@@ -27,8 +27,6 @@ export const Logs = ({ deploymentId }: LogsProps) => {
       ref.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [logs.length]);
-
-  // nothing for now
 
   React.useEffect(() => {
     let eventSource: EventSource | null = null;
