@@ -110,7 +110,7 @@ export const Logs = ({ deploymentId }: LogsProps) => {
             rel="noreferrer"
             className="font-medium underline"
           >
-            {liveDemoHost}
+            {liveDemoUrl}
           </a>
         </p>
       ) : null}
