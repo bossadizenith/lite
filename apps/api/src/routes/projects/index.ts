@@ -299,6 +299,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     });
 
     const result = await ecsClient.send(command);
+    console.log("ecs result: ", result);
     const taskArn = result.tasks?.[0]?.taskArn;
 
     if (!taskArn) {
