@@ -38,3 +38,8 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
   19.05.26
 
 - fixed the deployment issue i had. apparently it was the [runner dockerfile](/apps/runner/Dockerfile) that was not running the same node instance and the build server
+
+20.05.26
+
+- changed the folder layout from builder images to pipelines and added the runner and change the builder/vite-next to just builder
+- add npm, yarn, pnpm and bun to the docker images and implemented package manager detection.
