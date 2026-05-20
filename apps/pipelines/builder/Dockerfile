@@ -11,7 +11,7 @@ RUN apt-get install git -y
 WORKDIR /home/app
 
 COPY main.sh main.sh
-COPY script.ts script.ts
+COPY index.ts index.ts
 COPY framework-detection.ts framework-detection.ts
 COPY package*.json ./
 

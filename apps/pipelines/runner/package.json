@@ -1,5 +1,5 @@
 {
-  "name": "generic-runner",
+  "name": "@lite/pipelines-runner",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
