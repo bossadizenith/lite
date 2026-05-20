@@ -34,3 +34,7 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
   17.05.26
 
 - i think i found the issue with the runner not using the lastest image push. (it was simply because of my stupidness, i used image sha rather than image tag(latest) and the sha was tied to one image which was the first image i pushed to the runner repo)
+
+  19.05.26
+
+- fixed the deployment issue i had. apparently it was the [runner dockerfile](/apps/runner/Dockerfile) that was not running the same node instance and the build server
