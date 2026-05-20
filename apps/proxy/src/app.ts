@@ -91,87 +91,43 @@ app.all("*", async (c) => {
     return c.text("Active deployment not found", 404);
   }
 
-  if (deployment.type === "container") {
-    if (!deployment.ipAddress) {
-      return c.text("Container IP address not yet assigned", 503);
-    }
-    const port = deployment.runtimePort || 3000;
-    const upstreamUrl = `http://${deployment.ipAddress}:${port}${url.pathname}${url.search}`;
-
-    console.log(`Proxying to container: ${upstreamUrl}`);
-
-    try {
-      const res = await proxy(upstreamUrl, {
-        headers: {
-          ...c.req.header(),
-          "X-Forwarded-Host": hostname,
-          "X-Forwarded-Proto": url.protocol.replace(":", ""),
-          "X-Forwarded-For": c.req.header("x-forwarded-for") || "",
-        },
-      });
-
-      const location = res.headers.get("Location");
-      if (location) {
-        const internalBaseUrl = `http://${deployment.ipAddress}:${port}`;
-        if (location.startsWith(internalBaseUrl)) {
-          const relativePath = location.slice(internalBaseUrl.length);
-          const rewrittenResponse = new Response(res.body, res);
-          rewrittenResponse.headers.set("Location", relativePath);
-          return rewrittenResponse;
-        }
-      }
-
-      return res;
-    } catch (proxyErr) {
-      console.error("Upstream proxy error:", proxyErr);
-      return c.text("Service Unavailable", 503);
-    }
+  // if (deployment.type === "container" || deployment.type === "static") {
+  if (!deployment.ipAddress) {
+    return c.text("Container IP address not yet assigned", 503);
   }
+  const port =
+    deployment.type === "static" ? 4173 : deployment.runtimePort || 3000;
+  const upstreamUrl = `http://${deployment.ipAddress}:${port}${url.pathname}${url.search}`;
 
-  let pathname = url.pathname;
-  if (pathname === "/") {
-    pathname = "/index.html";
-  }
-
-  const key = `__outputs/${project.slug}${pathname}`;
-  console.log(`Fetching from S3: ${key}`);
+  console.log(`Proxying to container: ${upstreamUrl}`);
 
   try {
-    const res = await s3.send(
-      new GetObjectCommand({
-        Bucket: "vercel-lite-clone",
-        Key: key,
-      }),
-    );
-
-    return new Response(res.Body as any, {
+    const res = await proxy(upstreamUrl, {
       headers: {
-        "Content-Type": contentTypeForPath(pathname, res.ContentType),
-        "Cache-Control": "public, max-age=31536000",
+        ...c.req.header(),
+        "X-Forwarded-Host": hostname,
+        "X-Forwarded-Proto": url.protocol.replace(":", ""),
+        "X-Forwarded-For": c.req.header("x-forwarded-for") || "",
       },
     });
-  } catch (err: any) {
-    if (err.name === "NoSuchKey" && !pathname.includes(".")) {
-      try {
-        const fallback = await s3.send(
-          new GetObjectCommand({
-            Bucket: "vercel-lite-clone",
-            Key: `__outputs/${project.slug}/index.html`,
-          }),
-        );
-        return new Response(fallback.Body as any, {
-          headers: {
-            "Content-Type": "text/html",
-            "Cache-Control": "no-cache",
-          },
-        });
-      } catch (fallbackErr) {
-        return c.text("Not found", 404);
+
+    const location = res.headers.get("Location");
+    if (location) {
+      const internalBaseUrl = `http://${deployment.ipAddress}:${port}`;
+      if (location.startsWith(internalBaseUrl)) {
+        const relativePath = location.slice(internalBaseUrl.length);
+        const rewrittenResponse = new Response(res.body, res);
+        rewrittenResponse.headers.set("Location", relativePath);
+        return rewrittenResponse;
       }
     }
-    console.error(`Proxy error for ${key}:`, err);
-    return c.text("Not found", 404);
+
+    return res;
+  } catch (proxyErr) {
+    console.error("Upstream proxy error:", proxyErr);
+    return c.text("Service Unavailable", 503);
   }
+  // }
 });
 
 export const GET = handle(app);
