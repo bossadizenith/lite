@@ -5,7 +5,7 @@ import { Redis } from "ioredis";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
-import { detectFramework, type Framework } from "./framework-detection.js";
+import { detectFramework, type Framework, type PackageManager } from "./framework-detection.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,9 +97,10 @@ async function init() {
 
   const results = await detectFramework(outDirPath);
   const framework: Framework = results.framework;
+  const pm: PackageManager = results.packageManager;
 
   await publishLog(
-    `Detected framework: ${framework}, rootDir: ${results.rootDir}, confidence: ${results.confidence}`,
+    `Detected framework: ${framework}, packageManager: ${pm}, rootDir: ${results.rootDir}, confidence: ${results.confidence}`,
   );
 
   if (framework === "unknown") {
@@ -128,7 +129,7 @@ async function init() {
 
   await publishLog(`Building ${buildDescription} in ${appRoot}...`);
 
-  const p = spawn("npm install && npm run build", {
+  const p = spawn(pm + " install && " + pm + " run build", {
     cwd: appRoot,
     shell: true,
     env: { ...process.env, FORCE_COLOR: "1" },
@@ -197,11 +198,10 @@ async function init() {
       const tarballName = `deployment-${DEPLOYMENT_ID}.tar.gz`;
       const tarballPath = path.join(__dirname, tarballName);
 
-      // Write lite.json metadata so the runner knows which subdirectory to start from
       const liteMetaPath = path.join(outDirPath, "lite.json");
       fs.writeFileSync(
         liteMetaPath,
-        JSON.stringify({ rootDir: results.rootDir }),
+        JSON.stringify({ rootDir: results.rootDir, packageManager: pm }),
         "utf-8",
       );
 

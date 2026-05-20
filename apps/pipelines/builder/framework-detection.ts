@@ -2,10 +2,12 @@ import fs from "fs/promises";
 import path from "path";
 
 export type Framework = "nextjs" | "vite" | "unknown";
+export type PackageManager = "bun" | "npm" | "pnpm" | "yarn";
 
 type DetectionResult = {
   framework: Framework;
   rootDir: string;
+  packageManager: PackageManager;
   confidence: number;
   reason: string[];
 };
@@ -27,12 +29,15 @@ export async function detectFramework(
   let best: DetectionResult = {
     framework: "unknown",
     rootDir: ".",
+    packageManager: "npm",
     confidence: 0,
     reason: [],
+
   };
 
   for (const dir of candidates) {
     const pkg = await readPackageJsonIfExists(repoRoot, dir);
+    const packageManager = await detectPackageManager(repoRoot, dir);
     const files = await listTopFiles(repoRoot, dir);
 
     let scoreNext = 0;
@@ -78,9 +83,11 @@ export async function detectFramework(
     const confidence = Math.max(scoreNext, scoreVite);
 
     if (confidence > best.confidence) {
-      best = { framework, rootDir: dir, confidence, reason };
+      best = { framework, rootDir: dir, packageManager, confidence, reason };
     }
   }
+
+  best.packageManager = await detectPackageManager(repoRoot, best.rootDir);
 
   return best;
 }
@@ -145,5 +152,37 @@ const exists = async (
     return true;
   } catch {
     return false;
+  }
+};
+
+const detectPackageManager = async (
+  repoRoot: string,
+  dir: string = ".",
+): Promise<PackageManager> => {
+  try {
+    const appPath = path.join(repoRoot, dir);
+
+    const pathsToCheck = [appPath, repoRoot]
+
+    for (const p of pathsToCheck) {
+      const files = await fs.readdir(p).catch(() => [] as string[]);
+      if (files.includes("bun.lockb") || files.includes("bun.lock")) return "bun";
+      if (files.includes("package-lock.json")) return "npm";
+      if (files.includes("pnpm-lock.yaml")) return "pnpm";
+      if (files.includes("yarn.lock")) return "yarn";
+    }
+
+    const pkg = await readPackageJsonIfExists(repoRoot, dir);
+    if (pkg && typeof (pkg as any).packageManager === "string") {
+      const pm = (pkg as any).packageManager.toLowerCase() as string;
+      if (pm.includes("bun")) return "bun";
+      if (pm.includes("npm")) return "npm";
+      if (pm.includes("pnpm")) return "pnpm";
+      if (pm.includes("yarn")) return "yarn";
+    }
+
+    return "npm";
+  } catch {
+    return "npm";
   }
 };
