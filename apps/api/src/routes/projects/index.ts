@@ -230,25 +230,25 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     return;
   }
 
-  if (deployment.type === "static") {
-    await db
-      .update(deployments)
-      .set({
-        status: "healthy",
-        finishedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(deployments.id, deploymentId));
+  // if (deployment.type === "static") {
+  //   await db
+  //     .update(deployments)
+  //     .set({
+  //       status: "healthy",
+  //       finishedAt: new Date(),
+  //       updatedAt: new Date(),
+  //     })
+  //     .where(eq(deployments.id, deploymentId));
 
-    await db
-      .update(projects)
-      .set({
-        currentDeploymentId: deploymentId,
-        updatedAt: new Date(),
-      })
-      .where(eq(projects.id, deployment.projectId));
-    return;
-  }
+  //   await db
+  //     .update(projects)
+  //     .set({
+  //       currentDeploymentId: deploymentId,
+  //       updatedAt: new Date(),
+  //     })
+  //     .where(eq(projects.id, deployment.projectId));
+  //   return;
+  // }
 
   await db
     .update(deployments)
@@ -286,7 +286,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
                 value: env.AWS_SECRET_ACCESS_KEY,
               },
               { name: "AWS_REGION", value: env.AWS_REGION },
-              { name: "PORT", value: String(deployment.runtimePort || 3000) },
+              { name: "PORT", value: deployment.type === "static" ? "4173" : String(deployment.runtimePort || 3000) },
               ...Object.entries(
                 (project.envVars as Record<string, string>) || {},
               ).map(([name, value]) => ({
@@ -346,7 +346,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
       throw new Error("Failed to retrieve Public IP for the ENI");
     }
 
-    const port = deployment.runtimePort || 3000;
+    const port = deployment.type === "static" ? "4173" : (deployment.runtimePort || 3000);
     const ipUrl = `${publicIp}:${port}`;
     console.log(`Pinging ECS Public IP: ${ipUrl}`);
 

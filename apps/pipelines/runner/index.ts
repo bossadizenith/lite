@@ -6,6 +6,9 @@ import { fileURLToPath } from "url";
 import { exec as execCallback } from "child_process";
 import { promisify } from "util";
 
+
+
+
 const exec = promisify(execCallback);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -69,6 +72,7 @@ async function startApp() {
   const liteMetaPath = path.join(APP_DIR, "lite.json");
   let appDir = APP_DIR;
   let pm = "npm";
+  let framework = "vite";
   if (fs.existsSync(liteMetaPath)) {
     const meta = JSON.parse(fs.readFileSync(liteMetaPath, "utf-8"));
     if (meta.rootDir && meta.rootDir !== ".") {
@@ -79,12 +83,32 @@ async function startApp() {
       pm = meta.packageManager;
       console.log(`lite.json found: package manager is ${pm}`);
     }
+    if (meta.framework) {
+      framework = meta.framework;
+      console.log(`lite.json found: framework is ${framework}`);
+    }
   }
 
-  const child = spawn(pm, ["start"], {
+
+
+  let startArgs: string[];
+  let port: string;
+
+  if (framework === "vite") {
+    port = process.env.PORT || "4173";
+    startArgs = ["run", "preview", "--", "--host", "0.0.0.0", "--port", port];
+  } else {
+    port = process.env.PORT || "3000";
+    startArgs = ["start"];
+  }
+
+  console.log(`Starting app with: ${pm} ${startArgs.join(" ")} on port ${port}`);
+
+  const child = spawn(pm, startArgs, {
     cwd: appDir,
+    shell: true,
     stdio: "inherit",
-    env: { ...process.env, PORT: process.env.PORT || "3000" },
+    env: { ...process.env, PORT: port },
   });
 
   child.on("close", (code) => {

@@ -201,7 +201,7 @@ async function init() {
       const liteMetaPath = path.join(outDirPath, "lite.json");
       fs.writeFileSync(
         liteMetaPath,
-        JSON.stringify({ rootDir: results.rootDir, packageManager: pm }),
+        JSON.stringify({ rootDir: results.rootDir, packageManager: pm, framework }),
         "utf-8",
       );
 
