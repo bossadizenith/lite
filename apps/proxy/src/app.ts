@@ -101,7 +101,27 @@ app.all("*", async (c) => {
     console.log(`Proxying to container: ${upstreamUrl}`);
 
     try {
-      return proxy(upstreamUrl);
+      const res = await proxy(upstreamUrl, {
+        headers: {
+          ...c.req.header(),
+          "X-Forwarded-Host": hostname,
+          "X-Forwarded-Proto": url.protocol.replace(":", ""),
+          "X-Forwarded-For": c.req.header("x-forwarded-for") || "",
+        },
+      });
+
+      const location = res.headers.get("Location");
+      if (location) {
+        const internalBaseUrl = `http://${deployment.ipAddress}:${port}`;
+        if (location.startsWith(internalBaseUrl)) {
+          const relativePath = location.slice(internalBaseUrl.length);
+          const rewrittenResponse = new Response(res.body, res);
+          rewrittenResponse.headers.set("Location", relativePath);
+          return rewrittenResponse;
+        }
+      }
+
+      return res;
     } catch (proxyErr) {
       console.error("Upstream proxy error:", proxyErr);
       return c.text("Service Unavailable", 503);
