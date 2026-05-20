@@ -402,6 +402,12 @@ projectsRouter.post("/", async (c) => {
     envVars?.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {}) ||
     {};
 
+  const cleanupEnvVars = Object.fromEntries(
+    Object.entries(envVarsRecord).filter(
+      ([key, value]) => key !== "" && value !== "",
+    ),
+  );
+
   const finalSlug = slug ?? generateSlug();
   const name = repoUrl.split("/").pop() ?? finalSlug;
   const id = nanoid(8);
@@ -418,7 +424,7 @@ projectsRouter.post("/", async (c) => {
       name,
       subDomain: finalSlug,
       customDomain: "",
-      envVars: envVarsRecord,
+      envVars: cleanupEnvVars,
     })
     .returning();
 
@@ -454,7 +460,7 @@ projectsRouter.post("/", async (c) => {
             { name: "AWS_REGION", value: env.AWS_REGION },
             { name: "REDIS_URL", value: env.REDIS_URL },
             ...Object.entries(
-              (envVarsRecord as Record<string, string>) || {},
+              (cleanupEnvVars as Record<string, string>) || {},
             ).map(([name, value]) => ({
               name,
               value: String(value),

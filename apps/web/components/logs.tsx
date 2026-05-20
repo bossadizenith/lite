@@ -119,9 +119,11 @@ export const Logs = ({ deploymentId }: LogsProps) => {
           <p className="text-zinc-400">No logs yet...</p>
         ) : (
           logs.map((log) => (
-            <p key={log.id} className="wrap-break-words">
-              [{new Date(log.timestamp).toLocaleTimeString()}] [{log.level}]{" "}
-              {log.message}
+            <p key={log.id} className="whitespace-pre">
+              <span className="text-muted-foreground">
+                [{new Date(log.timestamp).toLocaleTimeString()}]
+              </span>{" "}
+              [{log.level}] {log.message}
             </p>
           ))
         )}
