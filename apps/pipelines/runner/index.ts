@@ -68,15 +68,20 @@ async function startApp() {
 
   const liteMetaPath = path.join(APP_DIR, "lite.json");
   let appDir = APP_DIR;
+  let pm = "npm";
   if (fs.existsSync(liteMetaPath)) {
     const meta = JSON.parse(fs.readFileSync(liteMetaPath, "utf-8"));
     if (meta.rootDir && meta.rootDir !== ".") {
       appDir = path.join(APP_DIR, meta.rootDir);
       console.log(`lite.json found: starting app from ${meta.rootDir}`);
     }
+    if (meta.packageManager) {
+      pm = meta.packageManager;
+      console.log(`lite.json found: package manager is ${pm}`);
+    }
   }
 
-  const child = spawn("npm", ["start"], {
+  const child = spawn(pm, ["start"], {
     cwd: appDir,
     stdio: "inherit",
     env: { ...process.env, PORT: process.env.PORT || "3000" },
