@@ -184,8 +184,9 @@ function sleep(ms: number) {
 }
 
 async function isDeploymentHealthy(url: string) {
-  for (let i = 0; i < 30; i += 1) {
+  for (let i = 0; i < HEALTHCHECK_ATTEMPTS; i += 1) {
     try {
+      console.log("time: ", i)
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
 
