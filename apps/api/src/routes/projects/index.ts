@@ -186,7 +186,7 @@ function sleep(ms: number) {
 async function isDeploymentHealthy(url: string) {
   for (let i = 0; i < HEALTHCHECK_ATTEMPTS; i += 1) {
     try {
-      console.log("time: ", i)
+      console.log("time: ", i);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
 
@@ -258,7 +258,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     })
     .where(eq(deployments.id, deploymentId));
 
-  console.log(deployment);
+  // console.log(deployment);
 
   try {
     const command = new RunTaskCommand({
@@ -286,7 +286,13 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
                 value: env.AWS_SECRET_ACCESS_KEY,
               },
               { name: "AWS_REGION", value: env.AWS_REGION },
-              { name: "PORT", value: deployment.type === "static" ? "4173" : String(deployment.runtimePort || 3000) },
+              {
+                name: "PORT",
+                value:
+                  deployment.type === "static"
+                    ? "4173"
+                    : String(deployment.runtimePort || 3000),
+              },
               ...Object.entries(
                 (project.envVars as Record<string, string>) || {},
               ).map(([name, value]) => ({
@@ -300,7 +306,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     });
 
     const result = await ecsClient.send(command);
-    console.log("ecs result: ", result);
+    // console.log("ecs result: ", result);
     const taskArn = result.tasks?.[0]?.taskArn;
 
     if (!taskArn) {
@@ -346,7 +352,8 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
       throw new Error("Failed to retrieve Public IP for the ENI");
     }
 
-    const port = deployment.type === "static" ? "4173" : (deployment.runtimePort || 3000);
+    const port =
+      deployment.type === "static" ? "4173" : deployment.runtimePort || 3000;
     const ipUrl = `${publicIp}:${port}`;
     console.log(`Pinging ECS Public IP: ${ipUrl}`);
 

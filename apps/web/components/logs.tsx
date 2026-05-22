@@ -114,7 +114,7 @@ export const Logs = ({ deploymentId }: LogsProps) => {
           </a>
         </p>
       ) : null}
-      <div className="max-h-[380px] overflow-auto rounded bg-background p-3 font-mono text-sm text-white">
+      <div className="max-h-[380px] overflow-auto rounded bg-background p-3 font-mono text-sm">
         {logs.length === 0 ? (
           <p className="text-zinc-400">No logs yet...</p>
         ) : (
