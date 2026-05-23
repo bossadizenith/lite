@@ -86,6 +86,19 @@ function parseLogEvents(rawLogs: string[]): LogEvent[] {
   });
 }
 
+function resolveRuntimePort(
+  deploymentType?: string,
+  framework?: string,
+): number {
+  if (framework === "vite" || deploymentType === "static") {
+    return 4173;
+  }
+  if (framework === "nextjs" || deploymentType === "container") {
+    return 3000;
+  }
+  return 5000;
+}
+
 function toDeploymentDbStatus(
   metadataStatus?: string,
 ): DeploymentDbStatus | null {
@@ -166,10 +179,17 @@ async function syncDeploymentFromMetadata(
   }
 
   if (dbStatus === "built") {
+    const deploymentType =
+      metadata.deploymentType === "container" ? "container" : "static";
+
     await db
       .update(deployments)
       .set({
-        type: metadata.deploymentType === "container" ? "container" : "static",
+        type: deploymentType,
+        runtimePort: resolveRuntimePort(
+          metadata.deploymentType,
+          metadata.framework,
+        ),
         imageUrl: metadata.imageUrl,
         url: metadata.artifactUrl || deployments.url,
       })
@@ -288,10 +308,10 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
               { name: "AWS_REGION", value: env.AWS_REGION },
               {
                 name: "PORT",
-                value:
-                  deployment.type === "static"
-                    ? "4173"
-                    : String(deployment.runtimePort || 3000),
+                value: String(
+                  deployment.runtimePort ??
+                    resolveRuntimePort(deployment.type),
+                ),
               },
               ...Object.entries(
                 (project.envVars as Record<string, string>) || {},
@@ -353,7 +373,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     }
 
     const port =
-      deployment.type === "static" ? "4173" : deployment.runtimePort || 3000;
+      deployment.runtimePort ?? resolveRuntimePort(deployment.type);
     const ipUrl = `${publicIp}:${port}`;
     console.log(`Pinging ECS Public IP: ${ipUrl}`);
 

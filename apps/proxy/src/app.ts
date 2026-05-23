@@ -95,8 +95,7 @@ app.all("*", async (c) => {
   if (!deployment.ipAddress) {
     return c.text("Container IP address not yet assigned", 503);
   }
-  const port =
-    deployment.type === "static" ? 4173 : deployment.runtimePort || 3000;
+  const port = deployment.runtimePort ?? 5000;
   const upstreamUrl = `http://${deployment.ipAddress}:${port}${url.pathname}${url.search}`;
 
   console.log(`Proxying to container: ${upstreamUrl}`);

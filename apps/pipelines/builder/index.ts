@@ -228,6 +228,7 @@ async function init() {
           finishedAt: Date.now().toString(),
           artifactUrl: `s3://vercel-lite-clone/__deployments/${PROJECT_ID}/${tarballName}`,
           deploymentType: framework === "nextjs" ? "container" : "static",
+          framework,
         });
       }
 
