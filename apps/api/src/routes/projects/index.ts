@@ -119,6 +119,38 @@ function toDeploymentDbStatus(
   }
 }
 
+async function setDeploymentRedisStatus(
+  deploymentId: string,
+  fields: DeploymentMetadata,
+) {
+  await redis.hset(`deployment:${deploymentId}`, fields);
+}
+
+async function enrichDeploymentMetadata(
+  db: DbClient,
+  deploymentId: string,
+  metadata: DeploymentMetadata,
+): Promise<DeploymentMetadata> {
+  const [row] = await db
+    .select({ status: deployments.status })
+    .from(deployments)
+    .where(eq(deployments.id, deploymentId))
+    .limit(1);
+
+  const dbStatus = row?.status;
+  if (dbStatus === "healthy") {
+    return { ...metadata, status: "healthy" };
+  }
+  if (dbStatus === "deploying") {
+    return { ...metadata, status: "deploying" };
+  }
+  if (dbStatus === "failed") {
+    return { ...metadata, status: "failed" };
+  }
+
+  return metadata;
+}
+
 async function syncDeploymentFromMetadata(
   db: DbClient,
   deploymentId: string,
@@ -250,26 +282,6 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
     return;
   }
 
-  // if (deployment.type === "static") {
-  //   await db
-  //     .update(deployments)
-  //     .set({
-  //       status: "healthy",
-  //       finishedAt: new Date(),
-  //       updatedAt: new Date(),
-  //     })
-  //     .where(eq(deployments.id, deploymentId));
-
-  //   await db
-  //     .update(projects)
-  //     .set({
-  //       currentDeploymentId: deploymentId,
-  //       updatedAt: new Date(),
-  //     })
-  //     .where(eq(projects.id, deployment.projectId));
-  //   return;
-  // }
-
   await db
     .update(deployments)
     .set({
@@ -277,6 +289,8 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
       updatedAt: new Date(),
     })
     .where(eq(deployments.id, deploymentId));
+
+  await setDeploymentRedisStatus(deploymentId, { status: "deploying" });
 
   // console.log(deployment);
 
@@ -309,8 +323,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
               {
                 name: "PORT",
                 value: String(
-                  deployment.runtimePort ??
-                    resolveRuntimePort(deployment.type),
+                  deployment.runtimePort ?? resolveRuntimePort(deployment.type),
                 ),
               },
               ...Object.entries(
@@ -372,8 +385,7 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
       throw new Error("Failed to retrieve Public IP for the ENI");
     }
 
-    const port =
-      deployment.runtimePort ?? resolveRuntimePort(deployment.type);
+    const port = deployment.runtimePort ?? resolveRuntimePort(deployment.type);
     const ipUrl = `${publicIp}:${port}`;
     console.log(`Pinging ECS Public IP: ${ipUrl}`);
 
@@ -401,16 +413,25 @@ async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
         updatedAt: new Date(),
       })
       .where(eq(projects.id, deployment.projectId));
+
+    await setDeploymentRedisStatus(deploymentId, { status: "healthy" });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     await db
       .update(deployments)
       .set({
         status: "failed",
-        errorMessage: error instanceof Error ? error.message : String(error),
+        errorMessage,
         finishedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(deployments.id, deploymentId));
+
+    await setDeploymentRedisStatus(deploymentId, {
+      status: "failed",
+      errorMessage,
+    });
   }
 }
 
@@ -571,9 +592,11 @@ projectsRouter.get("/:deploymentId/logs", async (c) => {
 
   await syncDeploymentFromMetadata(db, deploymentId, metadata);
 
+  const deployment = await enrichDeploymentMetadata(db, deploymentId, metadata);
+
   return c.json({
     logs: parseLogEvents(logs),
-    deployment: metadata,
+    deployment,
   });
 });
 
@@ -660,6 +683,12 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
 
           await syncDeploymentFromMetadata(db, deploymentId, deployment);
 
+          const enrichedDeployment = await enrichDeploymentMetadata(
+            db,
+            deploymentId,
+            deployment,
+          );
+
           const parsedLogs = parseLogEvents(logs);
           for (const logEvent of parsedLogs) {
             if (sentLogIds.has(logEvent.id)) continue;
@@ -667,11 +696,11 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
             send("log", logEvent);
           }
 
-          send("deployment", deployment);
+          send("deployment", enrichedDeployment);
 
-          const terminalStatuses = ["success", "error", "failed", "healthy"];
-          if (terminalStatuses.includes(deployment?.status)) {
-            send("done", { status: deployment.status });
+          const terminalStatuses = ["error", "failed", "healthy"];
+          if (terminalStatuses.includes(enrichedDeployment?.status)) {
+            send("done", { status: enrichedDeployment.status });
             markClosed();
             safelyCloseController();
             return;

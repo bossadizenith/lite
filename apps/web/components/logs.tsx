@@ -16,7 +16,9 @@ export const Logs = ({ deploymentId }: LogsProps) => {
   const [deployment, setDeployment] = React.useState<DeploymentMetadata>({});
   const [isConnected, setIsConnected] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
-  const isSuccess = deployment.status === "success";
+  const isHealthy = deployment.status === "healthy";
+  const isDeploying =
+    deployment.status === "success" || deployment.status === "deploying";
   const liveDemoHost = `${deploymentId}.localhoststories.dev`;
   const liveDemoUrl = isDev
     ? `http://${deploymentId}.localhost:8000`
@@ -64,7 +66,7 @@ export const Logs = ({ deploymentId }: LogsProps) => {
           if (!payload) return;
           setDeployment(payload);
 
-          const terminalStatuses = ["success", "error", "failed", "healthy"];
+          const terminalStatuses = ["error", "failed", "healthy"];
           if (terminalStatuses.includes(payload.status ?? "")) {
             setIsConnected(false);
             eventSource?.close();
@@ -101,7 +103,12 @@ export const Logs = ({ deploymentId }: LogsProps) => {
           {isConnected ? "live" : "reconnecting"}
         </div>
       </div>
-      {isSuccess ? (
+      {isDeploying && !isHealthy ? (
+        <p className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+          Build finished. Starting runtime and waiting for health check…
+        </p>
+      ) : null}
+      {isHealthy ? (
         <p className="mb-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
           Deployed live demo is on{" "}
           <a
