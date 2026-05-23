@@ -3,6 +3,7 @@
 import { env } from "@lite/env/client";
 import React from "react";
 import { DeploymentMetadata, LogEvent, PROJECTS_QUERY } from "@/lib/queries";
+import { cn } from "@lite/ui/lib/utils";
 
 type LogsProps = {
   deploymentId: string;
@@ -126,8 +127,21 @@ export const Logs = ({ deploymentId }: LogsProps) => {
           <p className="text-zinc-400">No logs yet...</p>
         ) : (
           logs.map((log) => (
-            <p key={log.id} className="whitespace-pre">
-              <span className="text-muted-foreground">
+            <p
+              key={log.id}
+              className={cn("whitespace-pre", {
+                "text-red-500": log.level === "error",
+                "text-yellow-500": log.level === "warn",
+                "text-green-500": log.level === "success",
+              })}
+            >
+              <span
+                className={cn("text-muted-foreground", {
+                  "text-red-500/50": log.level === "error",
+                  "text-yellow-500/50": log.level === "warn",
+                  "text-green-500/50": log.level === "success",
+                })}
+              >
                 [{new Date(log.timestamp).toLocaleTimeString()}]
               </span>{" "}
               [{log.level}] {log.message}
