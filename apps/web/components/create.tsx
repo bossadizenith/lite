@@ -85,7 +85,7 @@ export const Create = () => {
         <Envs control={form.control} register={form.register} />
       </form>
       {deploymentId ? (
-        <div className="w-full max-w-3xl">
+        <div className="w-full max-w-3xl min-w-0">
           <Logs deploymentId={deploymentId} />
         </div>
       ) : null}

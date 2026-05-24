@@ -96,8 +96,8 @@ export const Logs = ({ deploymentId }: LogsProps) => {
   }, [deploymentId]);
 
   return (
-    <div className="w-full max-w-3xl rounded-md border p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="w-full max-w-3xl min-w-0 overflow-hidden rounded-md border">
+      <div className="flex items-center justify-between p-4">
         <h2 className="text-lg font-semibold">Build logs</h2>
         <div className="text-sm text-muted-foreground">
           status: {deployment.status ?? "pending"} |{" "}
@@ -105,12 +105,12 @@ export const Logs = ({ deploymentId }: LogsProps) => {
         </div>
       </div>
       {isDeploying && !isHealthy ? (
-        <p className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+        <p className="m-4 mt-0 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
           Build finished. Starting runtime and waiting for health check…
         </p>
       ) : null}
       {isHealthy ? (
-        <p className="mb-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+        <p className="m-4 mt-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
           Deployed live demo is on{" "}
           <a
             href={liveDemoUrl}
@@ -122,31 +122,31 @@ export const Logs = ({ deploymentId }: LogsProps) => {
           </a>
         </p>
       ) : null}
-      <div className="max-h-[380px] overflow-auto rounded bg-background p-3 font-mono text-sm">
+      <div className="max-h-[380px] min-w-0 overflow-auto rounded bg-background font-mono text-sm pb-4">
         {logs.length === 0 ? (
-          <p className="text-zinc-400">No logs yet...</p>
+          <p className="p-4 pt-0 text-zinc-400">No logs yet...</p>
         ) : (
-          logs.map((log) => (
-            <p
-              key={log.id}
-              className={cn("whitespace-pre", {
-                "text-red-500": log.level === "error",
-                "text-yellow-500": log.level === "warn",
-                "text-green-500": log.level === "success",
-              })}
-            >
-              <span
-                className={cn("text-muted-foreground", {
-                  "text-red-500/50": log.level === "error",
-                  "text-yellow-500/50": log.level === "warn",
-                  "text-green-500/50": log.level === "success",
-                })}
-              >
-                [{new Date(log.timestamp).toLocaleTimeString()}]
-              </span>{" "}
-              [{log.level}] {log.message}
-            </p>
-          ))
+          <table className="w-max min-w-full border-collapse">
+            <tbody>
+              {logs.map((log) => (
+                <tr
+                  key={log.id}
+                  className={cn({
+                    "bg-red-500/10 text-red-500": log.level === "error",
+                    "bg-yellow-500/10 text-yellow-500": log.level === "warn",
+                    // "bg-green-500/10 text-green-500": log.level === "success",
+                  })}
+                >
+                  <td className="whitespace-pre px-4 py-0.5 align-top">
+                    <span className="text-muted-foreground">
+                      [{new Date(log.timestamp).toLocaleTimeString()}]
+                    </span>{" "}
+                    {log.message}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
         <div ref={ref} />
       </div>
