@@ -42,7 +42,7 @@ export const Create = () => {
   };
 
   return (
-    <div className="flex flex-col gap-8 items-center justify-center h-screen">
+    <div className="flex flex-col gap-8 items-center justify-center min-h-screen">
       <form
         onSubmit={form.handleSubmit(handleCreateProject)}
         className="w-full max-w-md space-y-4"
@@ -78,7 +78,7 @@ export const Create = () => {
             type="submit"
             className="w-fit"
           >
-            Create
+            Deploy
           </LoadingButton>
         </div>
 

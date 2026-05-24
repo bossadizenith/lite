@@ -44,3 +44,9 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
 - changed the folder layout from builder images to pipelines and added the runner and change the builder/vite-next to just builder
 - add npm, yarn, pnpm and bun to the docker images and implemented package manager detection.
 - While building the vite integration, i learned that vite preview server binds to localhost by default(127.0.0.1 as the host) which made the public ip impossible to access it from outside the container. so the fix was pointed out by an agent that went on and added this argument `["run", "preview", "--", "--host", "0.0.0.0", "--port", port]` and what it actually does is that it it tells the preview to to use `0.0.0.0` (all interfaces) rather than on `127.0.0.1` (localhost) which is what was used by default. and this made it possible to access it from outside the container.
+
+  24.05.26
+
+- fix the identification bg stop issue. replaced normal div/p's with a table tag given that tr will expand even when there's an overflow
+- change the action button the create.tsx from "Create" to "Deploy" i think i sounds more practical
+- finally published the project on X. i've procrastinated on it now for like the entire week.
