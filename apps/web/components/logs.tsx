@@ -4,6 +4,7 @@ import { env } from "@lite/env/client";
 import React from "react";
 import { DeploymentMetadata, LogEvent, PROJECTS_QUERY } from "@/lib/queries";
 import { cn } from "@lite/ui/lib/utils";
+import Ansi from "ansi-to-react";
 
 type LogsProps = {
   deploymentId: string;
@@ -141,7 +142,9 @@ export const Logs = ({ deploymentId }: LogsProps) => {
                     <span className="text-muted-foreground">
                       [{new Date(log.timestamp).toLocaleTimeString()}]
                     </span>{" "}
-                    {log.message}
+                    <Ansi className="whitespace-pre font-mono">
+                      {log.message}
+                    </Ansi>
                   </td>
                 </tr>
               ))}

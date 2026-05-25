@@ -13,7 +13,6 @@ WORKDIR /home/app
 
 COPY main.sh main.sh
 COPY index.ts index.ts
-COPY strip-ansi.ts strip-ansi.ts
 COPY framework-detection.ts framework-detection.ts
 COPY package*.json ./
 

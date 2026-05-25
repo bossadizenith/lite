@@ -16,7 +16,6 @@ import { nanoid } from "nanoid";
 import { generateSlug } from "random-word-slugs";
 import z from "zod";
 import type { ReqVariables } from "../../utils/hono.js";
-import { stripAnsi } from "../../utils/strip-ansi.js";
 
 const projectsRouter = new Hono<{ Variables: ReqVariables }>();
 
@@ -80,8 +79,7 @@ const HEALTHCHECK_DELAY_MS = 1500;
 function parseLogEvents(rawLogs: string[]): LogEvent[] {
   return rawLogs.flatMap((rawLog) => {
     try {
-      const event = JSON.parse(rawLog) as LogEvent;
-      return [{ ...event, message: stripAnsi(event.message) }];
+      return [JSON.parse(rawLog) as LogEvent];
     } catch {
       return [];
     }

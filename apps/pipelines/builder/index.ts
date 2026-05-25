@@ -6,7 +6,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { detectFramework, type Framework, type PackageManager } from "./framework-detection.js";
-import { stripAnsi } from "./strip-ansi.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,7 +48,7 @@ function createLogEvent(message: string, level = "info", source = "build") {
     id: `log_${logSequence}`,
     timestamp: Date.now(),
     level,
-    message: stripAnsi(message),
+    message,
     source,
   };
 }
@@ -135,9 +134,7 @@ async function init() {
     shell: true,
     env: {
       ...process.env,
-      FORCE_COLOR: "0",
-      NO_COLOR: "1",
-      CI: "true",
+      FORCE_COLOR: "1",
     },
   });
 
