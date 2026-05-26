@@ -50,3 +50,12 @@ well it's simple as of now, this is mainly for eductional purposes for me to und
 - fix the identification bg stop issue. replaced normal div/p's with a table tag given that tr will expand even when there's an overflow
 - change the action button the create.tsx from "Create" to "Deploy" i think i sounds more practical
 - finally published the project on X. i've procrastinated on it now for like the entire week.
+
+  25.05.26
+
+- build logs: wired `ansi-to-react` in the dashboard so npm/vite colors render in the browser; kept raw ANSI in Redis from the builder (`FORCE_COLOR=1`).
+
+  26.05.26
+
+- deployment history: added `GET /api/projects/:slug/deployments` and a deployments table in the UI — status, created time, **Live** badge, **View logs** per deploy (not only the latest).
+- deploy UX: live demo link only shows after runtime health check passes (`healthy`), not when the build artifact upload succeeds (`success`); API writes `deploying` / `healthy` / `failed` to Redis during ECS rollout.
