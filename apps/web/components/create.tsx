@@ -1,5 +1,6 @@
 "use client";
 
+import { DeploymentHistory } from "@/components/deployment-history";
 import { Logs } from "@/components/logs";
 import { PROJECTS_QUERY } from "@/lib/queries";
 import { CreateProjectSchema, createProjectSchema } from "@/lib/schema";
@@ -7,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Field, FieldError, FieldGroup } from "@lite/ui/components/field";
 import { Input } from "@lite/ui/components/input";
 import { LoadingButton } from "@lite/ui/components/loading-button";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import {
   Controller,
@@ -19,7 +20,11 @@ import {
 import { toast } from "sonner";
 
 export const Create = () => {
-  const [deploymentId, setDeploymentId] = React.useState<string | null>(null);
+  const [projectSlug, setProjectSlug] = React.useState<string | null>(null);
+  const [selectedDeploymentId, setSelectedDeploymentId] = React.useState<
+    string | undefined
+  >();
+  const queryClient = useQueryClient();
   const form = useForm<CreateProjectSchema>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: {
@@ -29,7 +34,11 @@ export const Create = () => {
   const { mutate: createProject, isPending } = useMutation({
     mutationFn: PROJECTS_QUERY.create,
     onSuccess: (project) => {
-      setDeploymentId(project.slug);
+      setProjectSlug(project.slug);
+      setSelectedDeploymentId(project.deploymentId);
+      void queryClient.invalidateQueries({
+        queryKey: ["deployments", project.slug],
+      });
       toast.success("Project created successfully");
     },
     onError: () => {
@@ -41,8 +50,15 @@ export const Create = () => {
     createProject(data);
   };
 
+  const handleDeploymentFinished = React.useCallback(() => {
+    if (!projectSlug) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["deployments", projectSlug],
+    });
+  }, [projectSlug, queryClient]);
+
   return (
-    <div className="flex flex-col gap-8 items-center justify-center min-h-screen">
+    <div className="flex flex-col gap-8 items-center justify-center min-h-screen py-20">
       <form
         onSubmit={form.handleSubmit(handleCreateProject)}
         className="w-full max-w-md space-y-4"
@@ -84,9 +100,20 @@ export const Create = () => {
 
         <Envs control={form.control} register={form.register} />
       </form>
-      {deploymentId ? (
-        <div className="w-full max-w-3xl min-w-0">
-          <Logs deploymentId={deploymentId} />
+      {projectSlug ? (
+        <div className="flex w-full max-w-3xl min-w-0 flex-col gap-4">
+          <DeploymentHistory
+            projectSlug={projectSlug}
+            selectedDeploymentId={selectedDeploymentId}
+            onSelectDeployment={setSelectedDeploymentId}
+          />
+          {selectedDeploymentId ? (
+            <Logs
+              projectSlug={projectSlug}
+              deploymentId={selectedDeploymentId}
+              onDeploymentFinished={handleDeploymentFinished}
+            />
+          ) : null}
         </div>
       ) : null}
     </div>

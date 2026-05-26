@@ -547,6 +547,46 @@ projectsRouter.post("/", async (c) => {
   return c.json({ ...project, deploymentId });
 });
 
+projectsRouter.get("/:slug/deployments", async (c) => {
+  const db = c.get("db");
+  const slug = c.req.param("slug");
+
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.slug, slug),
+  });
+
+  if (!project) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const rows = await db
+    .select({
+      id: deployments.id,
+      status: deployments.status,
+      type: deployments.type,
+      createdAt: deployments.createdAt,
+      updatedAt: deployments.updatedAt,
+      finishedAt: deployments.finishedAt,
+      errorMessage: deployments.errorMessage,
+    })
+    .from(deployments)
+    .where(eq(deployments.projectId, project.id))
+    .orderBy(desc(deployments.createdAt));
+
+  return c.json({
+    project: {
+      id: project.id,
+      slug: project.slug,
+      name: project.name,
+      currentDeploymentId: project.currentDeploymentId,
+    },
+    deployments: rows.map((row) => ({
+      ...row,
+      isCurrent: row.id === project.currentDeploymentId,
+    })),
+  });
+});
+
 projectsRouter.get("/:deploymentId/logs", async (c) => {
   const db = c.get("db");
 
