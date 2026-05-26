@@ -5,7 +5,11 @@ import { Redis } from "ioredis";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promisify } from "util";
-import { detectFramework, type Framework, type PackageManager } from "./framework-detection.js";
+import {
+  detectFramework,
+  type Framework,
+  type PackageManager,
+} from "./framework-detection.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,6 +85,61 @@ async function publishLog(message: string, level = "info", source = "build") {
   }
 }
 
+const BUILD_ENV = {
+  ...process.env,
+  FORCE_COLOR: "1",
+};
+
+function inferLogLevel(message: string): "info" | "warn" | "error" {
+  if (/\b(ERR!|error:|failed|FAIL)\b/i.test(message)) {
+    return "error";
+  }
+  if (/\b(warn|warning)\b/i.test(message)) {
+    return "warn";
+  }
+  return "info";
+}
+
+function streamChunkToLogs(data: Buffer) {
+  const message = data.toString().trim();
+  if (!message) return;
+  void publishLog(message, inferLogLevel(message));
+}
+
+function runShellCommand(command: string, cwd: string, label: string) {
+  return new Promise<void>((resolve, reject) => {
+    void publishLog(label);
+
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      env: BUILD_ENV,
+    });
+
+    child.stdout?.on("data", (data: Buffer) => {
+      process.stdout.write(data);
+      streamChunkToLogs(data);
+    });
+
+    child.stderr?.on("data", (data: Buffer) => {
+      process.stderr.write(data);
+      streamChunkToLogs(data);
+    });
+
+    child.on("error", (err) => {
+      reject(err);
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`Command failed with exit code ${code}: ${command}`));
+    });
+  });
+}
+
 async function init() {
   if (redis) {
     await redis.hset(DEPLOYMENT_KEY, {
@@ -129,126 +188,105 @@ async function init() {
 
   await publishLog(`Building ${buildDescription} in ${appRoot}...`);
 
-  const p = spawn(pm + " install && " + pm + " run build", {
-    cwd: appRoot,
-    shell: true,
-    env: {
-      ...process.env,
-      FORCE_COLOR: "1",
-    },
-  });
-
-  if (p.stdout) {
-    p.stdout.on("data", async function (data: Buffer) {
-      const message = data.toString().trim();
-      if (message) {
-        console.log(message);
-        await publishLog(message);
-      }
-    });
+  try {
+    await runShellCommand(
+      `${pm} install`,
+      appRoot,
+      "Installing dependencies...",
+    );
+    await runShellCommand(
+      `${pm} run build`,
+      appRoot,
+      "Running production build...",
+    );
+  } catch (err) {
+    const error = err as Error;
+    console.error("Build process failed:", error);
+    await publishLog(error.message, "error");
+    await markDeploymentError();
+    process.exit(1);
   }
 
-  if (p.stderr) {
-    p.stderr.on("data", async function (data: Buffer) {
-      const message = data.toString().trim();
-      if (message) {
-        console.error("Error", message);
-        await publishLog(message, "error");
-      }
-    });
-  }
+  console.log("Build Complete");
+  await publishLog("Build complete", "success");
 
-  p.on("error", async (err) => {
-    console.error("Process Error:", err);
-    await publishLog(`Failed to start build process: ${err.message}`, "error");
-  });
+  let isBuildValid = false;
 
-  p.on("close", async function (code: number | null) {
-    if (code !== 0) {
-      console.error(`Build failed with exit code ${code}`);
-      await publishLog(`Build failed with exit code ${code}`, "error");
-      await markDeploymentError();
-      process.exit(1);
-    }
-
-    console.log("Build Complete");
-    await publishLog("Build complete", "success");
-
-    let isBuildValid = false;
-
-    if (framework === "vite" && fs.existsSync(path.join(appRoot, "dist"))) {
+  if (framework === "vite" && fs.existsSync(path.join(appRoot, "dist"))) {
+    isBuildValid = true;
+  } else if (framework === "nextjs") {
+    const hasOut = fs.existsSync(path.join(appRoot, "out"));
+    const hasDotNext = fs.existsSync(path.join(appRoot, ".next"));
+    if (hasOut || hasDotNext) {
       isBuildValid = true;
-    } else if (framework === "nextjs") {
-      const hasOut = fs.existsSync(path.join(appRoot, "out"));
-      const hasDotNext = fs.existsSync(path.join(appRoot, ".next"));
-      if (hasOut || hasDotNext) {
-        isBuildValid = true;
-      }
     }
+  }
 
-    if (!isBuildValid) {
-      const expectedOut = framework === "vite" ? "dist/" : ".next/ or out/";
-      const errorMsg = `Error: Build output not found. Expected ${expectedOut} to be produced.`;
-      console.error(errorMsg);
-      await publishLog(errorMsg, "error");
-      await markDeploymentError();
-      process.exit(1);
-    }
+  if (!isBuildValid) {
+    const expectedOut = framework === "vite" ? "dist/" : ".next/ or out/";
+    const errorMsg = `Error: Build output not found. Expected ${expectedOut} to be produced.`;
+    console.error(errorMsg);
+    await publishLog(errorMsg, "error");
+    await markDeploymentError();
+    process.exit(1);
+  }
 
-    try {
-      await publishLog("Packaging deployment artifacts...");
+  try {
+    await publishLog("Packaging deployment artifacts...");
 
-      const tarballName = `deployment-${DEPLOYMENT_ID}.tar.gz`;
-      const tarballPath = path.join(__dirname, tarballName);
+    const tarballName = `deployment-${DEPLOYMENT_ID}.tar.gz`;
+    const tarballPath = path.join(__dirname, tarballName);
 
-      const liteMetaPath = path.join(outDirPath, "lite.json");
-      fs.writeFileSync(
-        liteMetaPath,
-        JSON.stringify({ rootDir: results.rootDir, packageManager: pm, framework }),
-        "utf-8",
-      );
+    const liteMetaPath = path.join(outDirPath, "lite.json");
+    fs.writeFileSync(
+      liteMetaPath,
+      JSON.stringify({
+        rootDir: results.rootDir,
+        packageManager: pm,
+        framework,
+      }),
+      "utf-8",
+    );
 
-      await execAsync(
-        `tar --exclude='./${tarballName}' -czf ${tarballPath} .`,
-        { cwd: outDirPath },
-      );
+    await execAsync(`tar --exclude='./${tarballName}' -czf ${tarballPath} .`, {
+      cwd: outDirPath,
+    });
 
-      await publishLog(`Uploading deployment bundle: ${tarballName}`);
+    await publishLog(`Uploading deployment bundle: ${tarballName}`);
 
-      const command = new PutObjectCommand({
-        Bucket: "vercel-lite-clone",
-        Key: `__deployments/${PROJECT_ID}/${tarballName}`,
-        Body: fs.createReadStream(tarballPath),
-        ContentType: "application/gzip",
+    const command = new PutObjectCommand({
+      Bucket: "vercel-lite-clone",
+      Key: `__deployments/${PROJECT_ID}/${tarballName}`,
+      Body: fs.createReadStream(tarballPath),
+      ContentType: "application/gzip",
+    });
+
+    await s3Client.send(command);
+    await publishLog("Deployment bundle uploaded successfully", "success");
+
+    if (redis) {
+      await redis.hset(DEPLOYMENT_KEY, {
+        status: "success",
+        finishedAt: Date.now().toString(),
+        artifactUrl: `s3://vercel-lite-clone/__deployments/${PROJECT_ID}/${tarballName}`,
+        deploymentType: framework === "nextjs" ? "container" : "static",
+        framework,
       });
-
-      await s3Client.send(command);
-      await publishLog("Deployment bundle uploaded successfully", "success");
-
-      if (redis) {
-        await redis.hset(DEPLOYMENT_KEY, {
-          status: "success",
-          finishedAt: Date.now().toString(),
-          artifactUrl: `s3://vercel-lite-clone/__deployments/${PROJECT_ID}/${tarballName}`,
-          deploymentType: framework === "nextjs" ? "container" : "static",
-          framework,
-        });
-      }
-
-      if (fs.existsSync(tarballPath)) {
-        fs.unlinkSync(tarballPath);
-      }
-
-      console.log("Done...");
-      process.exit(0);
-    } catch (err) {
-      const error = err as Error;
-      console.error("Packaging/Upload failed", error);
-      await publishLog(`Packaging/Upload failed: ${error.message}`, "error");
-      await markDeploymentError();
-      process.exit(1);
     }
-  });
+
+    if (fs.existsSync(tarballPath)) {
+      fs.unlinkSync(tarballPath);
+    }
+
+    console.log("Done...");
+    process.exit(0);
+  } catch (err) {
+    const error = err as Error;
+    console.error("Packaging/Upload failed", error);
+    await publishLog(`Packaging/Upload failed: ${error.message}`, "error");
+    await markDeploymentError();
+    process.exit(1);
+  }
 }
 
 init().catch(async (err) => {
