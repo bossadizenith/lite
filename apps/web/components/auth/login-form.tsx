@@ -9,10 +9,16 @@ import { LoadingButton } from "@lite/ui/components/loading-button";
 import { useMutation } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { Checkbox } from "@lite/ui/components/checkbox";
+import { Label } from "@lite/ui/components/label";
+import Link from "next/link";
 
 export const LoginForm = () => {
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      rememberMe: false,
+    },
   });
 
   const { mutate: login, isPending } = useMutation({
@@ -20,6 +26,7 @@ export const LoginForm = () => {
       const { data, error } = await authClient.signIn.email({
         email: values.email,
         password: values.password,
+        rememberMe: values.rememberMe,
         fetchOptions: {},
       });
 
@@ -76,6 +83,7 @@ export const LoginForm = () => {
                   aria-invalid={fieldState.invalid}
                   placeholder="Password"
                   autoComplete="off"
+                  type="password"
                 />
                 {fieldState.invalid && (
                   <FieldError errors={[fieldState.error]} />
@@ -84,6 +92,31 @@ export const LoginForm = () => {
             )}
           />
         </FieldGroup>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Controller
+              name="rememberMe"
+              control={form.control}
+              render={({ field }) => (
+                <Checkbox
+                  id="rememberMe"
+                  name={field.name}
+                  checked={field.value ?? false}
+                  onCheckedChange={field.onChange}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                />
+              )}
+            />
+            <Label htmlFor="rememberMe">Remember me</Label>
+          </div>
+          <Link
+            href="/auth/forgot-password"
+            className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <LoadingButton
           loading={isPending}
           disabled={isPending}
@@ -92,6 +125,15 @@ export const LoginForm = () => {
         >
           Login
         </LoadingButton>
+        <p className="text-sm text-muted-foreground text-center">
+          Don't have an account?{" "}
+          <Link
+            href="/auth/register"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Register
+          </Link>
+        </p>
       </form>
     </div>
   );

@@ -21,6 +21,7 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.email(),
   password: z.string(),
+  rememberMe: z.boolean().optional(),
 });
 
 export type CreateProjectSchema = z.infer<typeof createProjectSchema>;
