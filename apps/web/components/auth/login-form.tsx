@@ -28,6 +28,7 @@ export const LoginForm = () => {
         password: values.password,
         rememberMe: values.rememberMe,
         fetchOptions: {},
+        callbackURL: "/",
       });
 
       if (error) throw new Error(error.message);

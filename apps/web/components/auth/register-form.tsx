@@ -23,6 +23,7 @@ export const RegisterForm = () => {
         email: values.email,
         password: values.password,
         fetchOptions: {},
+        callbackURL: "/",
       });
 
       if (error) throw new Error(error.message);
