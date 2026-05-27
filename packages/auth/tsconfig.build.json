@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "jsx": "react-jsx",
+    "paths": {
+      "@lite/db": ["../db/dist/index.d.ts"],
+      "@lite/db/*": ["../db/dist/*.d.ts"]
+    },
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "skipLibCheck": true,
+    "noEmit": false
+  },
+  "include": ["src"]
+}

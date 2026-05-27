@@ -22,6 +22,10 @@ export const env = createEnvCore({
     SUBNET_3: z.string(),
     SECURITY_GROUP: z.string(),
 
+    BETTER_AUTH_SECRET: z.string(),
+    BETTER_AUTH_URL: z.string(),
+    URL: z.url(),
+
     TRUSTED_ORIGINS: z
       .string()
       .transform((val) => val.trim())
