@@ -69,6 +69,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@hookform/resolvers": "^5.2.2",
+        "@lite/auth": "*",
         "@lite/env": "*",
         "@lite/ui": "*",
         "@tanstack/react-query": "^5.100.4",

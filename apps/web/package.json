@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@lite/env": "*",
     "@lite/ui": "*",
+    "@lite/auth": "*",
     "@tanstack/react-query": "^5.100.4",
     "ansi-to-react": "^6.2.6",
     "next": "16.2.0",
