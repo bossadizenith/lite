@@ -1,4 +1,4 @@
-import { env } from "@lite/env/client";
+import { env } from "@lite/env/client.js";
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({

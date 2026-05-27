@@ -3,7 +3,6 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "moduleResolution": "bundler",
     "baseUrl": ".",
     "jsx": "react-jsx",
     "paths": {
