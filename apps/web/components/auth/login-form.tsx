@@ -1,3 +1,5 @@
+"use client";
+
 import { LoginSchema, loginSchema } from "@/lib/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { authClient } from "@lite/auth/auth-client";
@@ -14,12 +16,22 @@ export const LoginForm = () => {
   });
 
   const { mutate: login, isPending } = useMutation({
-    mutationFn: (data: LoginSchema) => authClient.signIn.email({ ...data }),
-    onSuccess: () => {
-      toast.success("Login successful");
+    mutationFn: async (values: LoginSchema) => {
+      const { data, error } = await authClient.signIn.email({
+        email: values.email,
+        password: values.password,
+        fetchOptions: {},
+      });
+
+      if (error) throw new Error(error.message);
+
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Welcome back, ${data.user.name}!`);
     },
     onError: (error) => {
-      toast.error("Login failed");
+      toast.error(error.message);
     },
   });
 
@@ -76,7 +88,7 @@ export const LoginForm = () => {
           loading={isPending}
           disabled={isPending}
           type="submit"
-          className="w-fit"
+          className="w-full"
         >
           Login
         </LoadingButton>

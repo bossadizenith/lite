@@ -1,12 +1,19 @@
 import { relations } from "drizzle-orm";
 import {
+  integer,
+  jsonb,
   pgEnum,
   pgTable,
   timestamp,
   varchar,
-  integer,
-  jsonb,
 } from "drizzle-orm/pg-core";
+import {
+  account,
+  rateLimitAttempts,
+  session,
+  user,
+  verification,
+} from "./auth-schema.js";
 
 export const deploymentStatusEnum = pgEnum("deployment_status", [
   "queued",
@@ -72,6 +79,11 @@ export const projectsRelations = relations(projects, ({ many }) => ({
 export const schema = {
   projects,
   deployments,
+  user,
+  account,
+  session,
+  verification,
+  rateLimitAttempts,
 };
 
 export default schema;
