@@ -1,8 +1,9 @@
-import { Create } from "@/components/create";
-import React from "react";
-
 const Page = () => {
-  return <Create />;
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <h1 className="text-4xl font-bold">Home</h1>
+    </div>
+  );
 };
 
 export default Page;
