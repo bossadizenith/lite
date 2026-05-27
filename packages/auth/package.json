@@ -5,18 +5,17 @@
   "types": "./dist/auth.d.ts",
   "private": true,
   "scripts": {
-    "build": "tsup src/auth.ts src/auth-client.ts src/utils/send-mail.ts src/utils/send-invitation-email.ts --format esm,cjs --dts -d dist --tsconfig tsconfig.build.json"
+    "build": "tsdown src/auth.ts src/auth-client.ts --format esm,cjs --dts -d dist --tsconfig tsconfig.build.json"
   },
   "exports": {
     "./auth-client": "./dist/auth-client.mjs",
-    "./auth": "./dist/auth.mjs",
-    "./utils/send-mail": "./dist/utils/send-mail.mjs"
+    "./auth": "./dist/auth.mjs"
   },
   "devDependencies": {
     "@lite/typescript-config": "workspace:*",
     "@types/node": "^20",
     "@types/react": "^19.2.0",
-    "tsup": "^8.5.0"
+    "tsdown": "^0.22.0"
   },
   "peerDependencies": {
     "react": "^19.2.0",

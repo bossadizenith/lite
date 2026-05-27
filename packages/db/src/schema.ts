@@ -43,6 +43,9 @@ export const projects = pgTable("projects", {
   envVars: jsonb("env_vars"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  userId: varchar("user_id", { length: 255 })
+    .notNull()
+    .references(() => user.id),
 });
 
 export const deployments = pgTable("deployments", {
@@ -65,6 +68,10 @@ export const deployments = pgTable("deployments", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const userProjectsRelations = relations(user, ({ many }) => ({
+  projects: many(projects),
+}));
+
 export const deploymentsRelations = relations(deployments, ({ one }) => ({
   project: one(projects, {
     fields: [deployments.projectId],
@@ -84,6 +91,9 @@ export const schema = {
   session,
   verification,
   rateLimitAttempts,
+  userProjectsRelations,
+  deploymentsRelations,
+  projectsRelations,
 };
 
 export default schema;
