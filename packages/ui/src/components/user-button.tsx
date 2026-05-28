@@ -1,10 +1,9 @@
-import * as React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@lite/ui/components/avatar";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@lite/ui/lib/utils";
 
@@ -57,4 +56,4 @@ const UserButton = ({
   );
 };
 
-export { UserButton, iconvVariants };
+export { iconvVariants, UserButton };

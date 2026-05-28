@@ -6,6 +6,7 @@ import { cors } from "hono/cors";
 import { handle } from "hono/vercel";
 import { routes } from "./routes/index.js";
 import type { ReqVariables } from "./utils/hono.js";
+import { auth } from "@lite/auth/auth";
 
 const app = new Hono<{ Variables: ReqVariables }>();
 
@@ -31,8 +32,18 @@ app.use(
 );
 
 app.use("*", async (c, next) => {
+  const session = await auth.api.getSession({
+    headers: c.req.raw.headers,
+  });
+
+  if (!session) {
+    c.set("session", null);
+    return next();
+  }
+
+  c.set("session", session);
   c.set("db", db);
-  await next();
+  return next();
 });
 
 app.route("/api", routes);

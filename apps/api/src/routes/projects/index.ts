@@ -439,6 +439,10 @@ projectsRouter.post("/", async (c) => {
   const db = c.get("db");
   const reqBody = await c.req.json();
   const validated = projectBodySchema.safeParse(reqBody);
+  const session = c.get("session");
+  if (!session) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
 
   if (!validated.success) {
     return c.json({ error: validated.error.issues }, 400);
@@ -466,6 +470,7 @@ projectsRouter.post("/", async (c) => {
     .insert(projects)
     .values({
       id,
+      userId: session.user.id,
       repoUrl,
       slug: finalSlug,
       buildCommand: "npm run build",

@@ -1,3 +1,4 @@
+import { Project } from "next/dist/build/swc/types";
 import { apiClient } from "./api-client";
 import { CreateProjectSchema } from "./schema";
 
@@ -53,5 +54,10 @@ export const PROJECTS_QUERY = {
       logs: LogEvent[];
       deployment: DeploymentMetadata;
     }>(`/projects/${deploymentId}/logs`);
+  },
+  projects: async () => {
+    return apiClient.get<{
+      projects: Project[];
+    }>("/projects");
   },
 };
