@@ -1,4 +1,3 @@
-import { Project } from "next/dist/build/swc/types";
 import { apiClient } from "./api-client";
 import { CreateProjectSchema } from "./schema";
 
@@ -21,6 +20,13 @@ export type DeploymentSummary = {
   finishedAt: string | null;
   errorMessage: string | null;
   isCurrent: boolean;
+};
+
+export type Project = {
+  id: string;
+  slug: string;
+  name: string;
+  currentDeploymentId: string | null;
 };
 
 export type ProjectDeploymentsResponse = {

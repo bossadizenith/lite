@@ -21,8 +21,12 @@ const projectsRouter = new Hono<{ Variables: ReqVariables }>();
 
 projectsRouter.get("/", async (c) => {
   const db = c.get("db");
-  const allProjects = await db.select().from(projects);
-  return c.json(allProjects);
+  const session = c.get("session");
+  if (!session) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const allProjects = await db.select().from(projects).where(eq(projects.userId, session.user.id));
+  return c.json({ projects: allProjects });
 });
 
 const projectBodySchema = z.object({
