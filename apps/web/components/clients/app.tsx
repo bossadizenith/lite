@@ -21,7 +21,6 @@ export const App = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {Array.from({ length: 12 }).map((_, index) => (
             <div
-              //   href={`/projects/${index + 1}`}
               key={index}
               className="rounded-lg p-4 border bg-input/30 flex flex-col justify-between gap-2 relative overflow-hidden"
             >
