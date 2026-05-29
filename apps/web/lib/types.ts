@@ -52,3 +52,17 @@ export type DeploymentHistoryProps = {
   selectedDeploymentId?: string;
   onSelectDeployment: (deploymentId: string) => void;
 };
+
+export type QueryValue = string | number | boolean | null | undefined;
+export type QueryParams = Record<string, QueryValue>;
+
+export type ApiRequestOptions = {
+  params?: QueryParams;
+  headers?: HeadersInit;
+  signal?: AbortSignal;
+  credentials?: RequestCredentials;
+};
+
+export type ApiMethodOptions<TBody> = ApiRequestOptions & {
+  data?: TBody;
+};

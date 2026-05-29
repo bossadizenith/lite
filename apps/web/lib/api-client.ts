@@ -1,4 +1,5 @@
 import { env } from "@lite/env/client";
+import type { ApiMethodOptions, ApiRequestOptions, QueryParams } from "./types";
 
 const API_BASE_URL = `${env.NEXT_PUBLIC_BACKEND_URL}/api`;
 
@@ -13,20 +14,6 @@ export class ApiError extends Error {
     this.data = data;
   }
 }
-
-type QueryValue = string | number | boolean | null | undefined;
-type QueryParams = Record<string, QueryValue>;
-
-type ApiRequestOptions = {
-  params?: QueryParams;
-  headers?: HeadersInit;
-  signal?: AbortSignal;
-  credentials?: RequestCredentials;
-};
-
-type ApiMethodOptions<TBody> = ApiRequestOptions & {
-  data?: TBody;
-};
 
 function buildUrl(path: string, params?: QueryParams): string {
   const base = path.startsWith("http")

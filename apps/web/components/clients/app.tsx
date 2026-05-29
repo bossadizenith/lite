@@ -7,7 +7,13 @@ import { Input } from "@lite/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import {
+  debounce,
+  parseAsInteger,
+  parseAsString,
+  useQueryState,
+} from "nuqs";
+import { useDeferredValue } from "react";
 import { Header } from "../header";
 import { QUERY_KEYS } from "@/lib/consts";
 
@@ -28,26 +34,26 @@ function projectSiteUrl(subDomain: string) {
 }
 
 export const App = () => {
-  const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedSearch(searchInput.trim());
-      setPage(1);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [searchInput]);
+  const [page, setPage] = useQueryState(
+    "page",
+    parseAsInteger.withDefault(1).withOptions({ clearOnDefault: true }),
+  );
+  const [q, setQ] = useQueryState(
+    "q",
+    parseAsString.withDefault("").withOptions({
+      clearOnDefault: true,
+      shallow: false,
+    }),
+  );
+  const debouncedQ = useDeferredValue(q.trim());
 
   const { data, isLoading, isError, error, isFetching } = useQuery({
-    queryKey: [QUERY_KEYS.PROJECTS, page, debouncedSearch, PAGE_SIZE],
+    queryKey: [QUERY_KEYS.PROJECTS, page, debouncedQ, PAGE_SIZE],
     queryFn: () =>
       PROJECTS_QUERY.list({
         page,
         limit: PAGE_SIZE,
-        q: debouncedSearch || undefined,
+        q: debouncedQ || undefined,
       }),
     placeholderData: (previous) => previous,
   });
@@ -67,8 +73,15 @@ export const App = () => {
             <Input
               placeholder="Search projects"
               className="w-full"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
+              value={q}
+              onChange={(event) => {
+                const value = event.target.value;
+                void setQ(value, {
+                  limitUrlUpdates:
+                    value === "" ? undefined : debounce(SEARCH_DEBOUNCE_MS),
+                });
+                void setPage(1, { history: "replace" });
+              }}
             />
           </div>
           <Link href="/new" className={buttonVariants()}>
@@ -84,7 +97,7 @@ export const App = () => {
           </p>
         ) : projects.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {debouncedSearch
+            {debouncedQ
               ? "No projects match your search."
               : "No projects yet. Create your first project."}
           </p>
@@ -161,7 +174,7 @@ export const App = () => {
                 variant="outline"
                 size="icon"
                 disabled={!canGoPrevious || isFetching}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                onClick={() => void setPage(Math.max(1, page - 1))}
               >
                 <ChevronLeft className="size-4" />
               </Button>
@@ -172,9 +185,7 @@ export const App = () => {
                 variant="outline"
                 size="icon"
                 disabled={!canGoNext || isFetching}
-                onClick={() =>
-                  setPage((current) => Math.min(totalPages, current + 1))
-                }
+                onClick={() => void setPage(Math.min(totalPages, page + 1))}
               >
                 <ChevronRight className="size-4" />
               </Button>

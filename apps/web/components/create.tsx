@@ -54,7 +54,7 @@ export const Create = () => {
   const handleDeploymentFinished = React.useCallback(() => {
     if (!projectSlug) return;
     void queryClient.invalidateQueries({
-      queryKey: ["deployments", projectSlug],
+      queryKey: [QUERY_KEYS.DEPLOYMENTS, projectSlug],
     });
   }, [projectSlug, queryClient]);
 
