@@ -2,6 +2,7 @@
 
 import { DeploymentHistory } from "@/components/deployment-history";
 import { Logs } from "@/components/logs";
+import { QUERY_KEYS } from "@/lib/consts";
 import { PROJECTS_QUERY } from "@/lib/queries";
 import { CreateProjectSchema, createProjectSchema } from "@/lib/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,7 +38,7 @@ export const Create = () => {
       setProjectSlug(project.slug);
       setSelectedDeploymentId(project.deploymentId);
       void queryClient.invalidateQueries({
-        queryKey: ["deployments", project.slug],
+        queryKey: [QUERY_KEYS.PROJECTS, project.slug],
       });
       toast.success("Project created successfully");
     },

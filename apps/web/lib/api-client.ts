@@ -52,7 +52,7 @@ async function request<TResponse, TBody = unknown>(
   const response = await fetch(buildUrl(path, params), {
     method,
     signal,
-    credentials,
+    credentials: credentials ?? "include",
     headers: {
       "Content-Type": "application/json",
       ...headers,

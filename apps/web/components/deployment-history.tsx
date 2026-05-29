@@ -1,15 +1,10 @@
 "use client";
 
-import { DeploymentSummary, PROJECTS_QUERY } from "@/lib/queries";
+import { PROJECTS_QUERY } from "@/lib/queries";
+import type { DeploymentHistoryProps, DeploymentSummary } from "@/lib/types";
 import { cn } from "@lite/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
-
-type DeploymentHistoryProps = {
-  projectSlug: string;
-  selectedDeploymentId?: string;
-  onSelectDeployment: (deploymentId: string) => void;
-};
 
 const statusStyles: Record<string, string> = {
   queued: "bg-zinc-500/20 text-zinc-300",
@@ -73,7 +68,7 @@ export const DeploymentHistory = ({
   }, [latestDeploymentId, selectedDeploymentId, onSelectDeployment]);
 
   return (
-    <div className="w-full max-w-3xl min-w-0 overflow-hidden rounded-md border">
+    <div className="w-full min-w-0 overflow-hidden rounded-md border">
       <div className="flex items-center justify-between border-b p-4">
         <h2 className="text-lg font-semibold">Deployments</h2>
         <span className="text-sm text-muted-foreground">
@@ -82,7 +77,9 @@ export const DeploymentHistory = ({
       </div>
 
       {isLoading ? (
-        <p className="p-4 text-sm text-muted-foreground">Loading deployments…</p>
+        <p className="p-4 text-sm text-muted-foreground">
+          Loading deployments…
+        </p>
       ) : null}
 
       {isError ? (
@@ -135,7 +132,9 @@ export const DeploymentHistory = ({
                         onClick={() => onSelectDeployment(deployment.id)}
                         className={cn(
                           "text-sm font-medium underline-offset-4 hover:underline",
-                          isSelected ? "text-foreground" : "text-muted-foreground",
+                          isSelected
+                            ? "text-foreground"
+                            : "text-muted-foreground",
                         )}
                       >
                         View logs

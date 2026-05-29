@@ -9,7 +9,7 @@ import {
 } from "@aws-sdk/client-ec2";
 import { deploymentStatusEnum, deployments, projects } from "@lite/db/schema";
 import { env } from "@lite/env/server.js";
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import { Hono } from "hono";
 import Redis from "ioredis";
 import { nanoid } from "nanoid";
@@ -19,14 +19,70 @@ import type { ReqVariables } from "../../utils/hono.js";
 
 const projectsRouter = new Hono<{ Variables: ReqVariables }>();
 
+const listProjectsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(12),
+  q: z.string().trim().optional(),
+});
+
 projectsRouter.get("/", async (c) => {
   const db = c.get("db");
   const session = c.get("session");
   if (!session) {
     return c.json({ error: "Unauthorized" }, 401);
   }
-  const allProjects = await db.select().from(projects).where(eq(projects.userId, session.user.id));
-  return c.json({ projects: allProjects });
+
+  const parsed = listProjectsQuerySchema.safeParse({
+    page: c.req.query("page"),
+    limit: c.req.query("limit"),
+    q: c.req.query("q"),
+  });
+
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.flatten() }, 400);
+  }
+
+  const { page, limit, q } = parsed.data;
+  const filters = [eq(projects.userId, session.user.id)];
+
+  if (q) {
+    const pattern = `%${q}%`;
+    filters.push(
+      or(
+        ilike(projects.name, pattern),
+        ilike(projects.slug, pattern),
+        ilike(projects.repoUrl, pattern),
+        ilike(projects.subDomain, pattern),
+        ilike(projects.customDomain, pattern),
+      )!,
+    );
+  }
+
+  const where = and(...filters);
+  const offset = (page - 1) * limit;
+
+  const [items, totalRow] = await Promise.all([
+    db
+      .select()
+      .from(projects)
+      .where(where)
+      .orderBy(desc(projects.updatedAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ total: count() }).from(projects).where(where),
+  ]);
+
+  const total = totalRow[0]?.total ?? 0;
+
+  return c.json({
+    projects: items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  });
 });
 
 const projectBodySchema = z.object({
