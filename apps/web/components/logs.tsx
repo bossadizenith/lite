@@ -2,7 +2,8 @@
 
 import { env } from "@lite/env/client";
 import React from "react";
-import { DeploymentMetadata, LogEvent, PROJECTS_QUERY } from "@/lib/queries";
+import { PROJECTS_QUERY } from "@/lib/queries";
+import type { DeploymentMetadata, LogEvent } from "@/lib/types";
 import { cn } from "@lite/ui/lib/utils";
 import Ansi from "ansi-to-react";
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { QUERY_KEYS } from "@/lib/consts";
 import { PROJECTS_QUERY } from "@/lib/queries";
 import type { DeploymentHistoryProps, DeploymentSummary } from "@/lib/types";
 import { cn } from "@lite/ui/lib/utils";
@@ -39,7 +40,7 @@ export const DeploymentHistory = ({
   onSelectDeployment,
 }: DeploymentHistoryProps) => {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["deployments", projectSlug],
+    queryKey: [QUERY_KEYS.DEPLOYMENTS, projectSlug],
     queryFn: () => PROJECTS_QUERY.deployments(projectSlug),
     enabled: Boolean(projectSlug),
     refetchInterval: (query) => {

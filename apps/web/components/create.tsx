@@ -38,7 +38,7 @@ export const Create = () => {
       setProjectSlug(project.slug);
       setSelectedDeploymentId(project.deploymentId);
       void queryClient.invalidateQueries({
-        queryKey: [QUERY_KEYS.PROJECTS, project.slug],
+        queryKey: [QUERY_KEYS.DEPLOYMENTS, project.slug],
       });
       toast.success("Project created successfully");
     },
