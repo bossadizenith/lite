@@ -12,7 +12,11 @@ import {
 } from "@/lib/deployment-utils";
 import type { DeploymentSummary } from "@/lib/types";
 import { useSession } from "@/providers/session";
-import { Avatar, AvatarFallback, AvatarImage } from "@lite/ui/components/avatar";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@lite/ui/components/avatar";
 import { Button } from "@lite/ui/components/button";
 import { cn } from "@lite/ui/lib/utils";
 import {
@@ -119,23 +123,26 @@ export const DeploymentDetailsCard = ({
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_640px] max-w-full">
         <div className="border-b border-border/80 p-5 lg:border-b-0 lg:border-r">
           <div
             className={cn(
-              "overflow-hidden rounded-md border bg-white shadow-sm",
-              canPreview ? "aspect-[16/10] min-h-[280px]" : "min-h-[200px]",
+              "overflow-hidden rounded-md border bg-background shadow-sm",
+              canPreview && "aspect-square",
             )}
           >
             {canPreview ? (
-              <iframe
-                title={`${projectName} preview`}
-                src={previewUrl}
-                className="size-full border-0"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-              />
+              <div className="relative size-full overflow-hidden">
+                <iframe
+                  title={`${projectName} preview`}
+                  src={previewUrl}
+                  scrolling="no"
+                  className="pointer-events-none block size-full overflow-hidden border-0"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                />
+              </div>
             ) : (
-              <div className="flex size-full min-h-[200px] items-center justify-center bg-zinc-100 p-8 text-center text-sm text-zinc-500">
+              <div className="flex size-full min-h-[200px] items-center justify-center bg-muted p-8 text-center text-sm text-muted-foreground">
                 Preview will appear when the deployment is ready.
                 <br />
                 <span className="mt-1 capitalize text-zinc-400">
@@ -150,9 +157,7 @@ export const DeploymentDetailsCard = ({
           <MetaField label="Created">
             <div className="flex items-center gap-2">
               <Avatar size="sm">
-                {user?.image ? (
-                  <AvatarImage src={user.image} alt="" />
-                ) : null}
+                {user?.image ? <AvatarImage src={user.image} alt="" /> : null}
                 <AvatarFallback className="text-[10px]">
                   {initials}
                 </AvatarFallback>
@@ -220,21 +225,6 @@ export const DeploymentDetailsCard = ({
                   <ExternalLink className="size-3 shrink-0 opacity-50" />
                 </a>
               </li>
-              {productionUrl !== previewUrl ? (
-                <li>
-                  <a
-                    href={productionUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:underline"
-                  >
-                    <span className="truncate font-mono text-xs">
-                      {deployment.url}
-                    </span>
-                    <ExternalLink className="size-3 shrink-0 opacity-50" />
-                  </a>
-                </li>
-              ) : null}
             </ul>
           </MetaField>
 
