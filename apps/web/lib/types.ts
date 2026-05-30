@@ -14,6 +14,12 @@ export type DeploymentSummary = {
   id: string;
   status: string;
   type: string;
+  url: string;
+  commitMessage: string | null;
+  commitHash: string | null;
+  commitAuthor: string | null;
+  branch: string | null;
+  redeployOfId: string | null;
   createdAt: string;
   updatedAt: string;
   finishedAt: string | null;
@@ -42,6 +48,7 @@ export type ProjectDeploymentsResponse = {
     id: string;
     slug: string;
     name: string;
+    subDomain: string;
     currentDeploymentId: string | null;
   };
   deployments: DeploymentSummary[];
@@ -50,7 +57,10 @@ export type ProjectDeploymentsResponse = {
 export type DeploymentHistoryProps = {
   projectSlug: string;
   selectedDeploymentId?: string;
-  onSelectDeployment: (deploymentId: string) => void;
+  onSelectDeployment?: (deploymentId: string) => void;
+  linkToDeployment?: boolean;
+  showFilters?: boolean;
+  compact?: boolean;
 };
 
 export type QueryValue = string | number | boolean | null | undefined;
