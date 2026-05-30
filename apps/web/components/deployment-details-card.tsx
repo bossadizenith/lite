@@ -24,12 +24,17 @@ import {
   Globe,
   Link2,
   MoreHorizontal,
+  RotateCw,
   Timer,
 } from "lucide-react";
+import { LoadingButton } from "@lite/ui/components/loading-button";
+
 type DeploymentDetailsCardProps = {
   projectSlug: string;
   projectName: string;
   deployment: DeploymentSummary;
+  onRedeploy?: () => void;
+  isRedeploying?: boolean;
 };
 
 function MetaField({
@@ -51,6 +56,8 @@ export const DeploymentDetailsCard = ({
   projectSlug,
   projectName,
   deployment,
+  onRedeploy,
+  isRedeploying = false,
 }: DeploymentDetailsCardProps) => {
   const { user } = useSession();
   const previewUrl = projectPreviewUrl(projectSlug);
@@ -73,6 +80,19 @@ export const DeploymentDetailsCard = ({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 px-5 py-4">
         <h2 className="text-lg font-semibold">Deployment Details</h2>
         <div className="flex flex-wrap items-center gap-2">
+          {onRedeploy ? (
+            <LoadingButton
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 bg-transparent font-normal"
+              loading={isRedeploying}
+              disabled={isRedeploying}
+              onClick={onRedeploy}
+            >
+              <RotateCw className="size-3.5" />
+              Redeploy
+            </LoadingButton>
+          ) : null}
           <Button
             variant="outline"
             size="sm"

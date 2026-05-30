@@ -24,10 +24,12 @@ export const PROJECTS_QUERY = {
       `/projects/${slug}/deployments`,
     );
   },
-  redeploy: async (slug: string) => {
-    return apiClient.post<{ deploymentId: string; projectSlug: string }>(
-      `/projects/${slug}/deploy`,
-    );
+  redeploy: async (slug: string, deploymentId: string) => {
+    return apiClient.post<{
+      deploymentId: string;
+      projectSlug: string;
+      redeployOfId: string;
+    }>(`/projects/${slug}/deployments/${deploymentId}/redeploy`);
   },
   logs: async (deploymentId: string) => {
     return apiClient.get<{

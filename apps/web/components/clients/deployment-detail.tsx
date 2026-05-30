@@ -8,11 +8,13 @@ import { Logs } from "@/components/logs";
 import { formatDeploymentDuration } from "@/lib/deployment-utils";
 import { QUERY_KEYS } from "@/lib/consts";
 import { PROJECTS_QUERY } from "@/lib/queries";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@lite/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import { Header } from "../header";
 
 type DeploymentDetailProps = {
@@ -26,8 +28,23 @@ export const DeploymentDetail = ({
   projectSlug,
   deploymentId,
 }: DeploymentDetailProps) => {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Deployment");
+
+  const { mutate: redeploy, isPending: isRedeploying } = useMutation({
+    mutationFn: () => PROJECTS_QUERY.redeploy(projectSlug, deploymentId),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({
+        queryKey: [QUERY_KEYS.DEPLOYMENTS, projectSlug],
+      });
+      toast.success("Redeploy started");
+      router.push(`/${result.projectSlug}/${result.deploymentId}`);
+    },
+    onError: () => {
+      toast.error("Failed to redeploy");
+    },
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: [QUERY_KEYS.DEPLOYMENTS, projectSlug],
@@ -107,6 +124,8 @@ export const DeploymentDetail = ({
                   projectSlug={projectSlug}
                   projectName={projectName}
                   deployment={deployment}
+                  onRedeploy={() => redeploy()}
+                  isRedeploying={isRedeploying}
                 />
               )}
 

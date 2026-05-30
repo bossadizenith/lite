@@ -182,7 +182,7 @@ projectsRouter.post("/", async (c) => {
   return c.json({ ...project, deploymentId });
 });
 
-projectsRouter.post("/:slug/deploy", async (c) => {
+projectsRouter.post("/:slug/deployments/:deploymentId/redeploy", async (c) => {
   const db = c.get("db");
   const session = c.get("session");
   if (!session) {
@@ -190,6 +190,7 @@ projectsRouter.post("/:slug/deploy", async (c) => {
   }
 
   const slug = c.req.param("slug");
+  const sourceDeploymentId = c.req.param("deploymentId");
 
   const project = await db.query.projects.findFirst({
     where: and(eq(projects.slug, slug), eq(projects.userId, session.user.id)),
@@ -199,26 +200,41 @@ projectsRouter.post("/:slug/deploy", async (c) => {
     return c.json({ error: "Project not found" }, 404);
   }
 
-  const deploymentId = nanoid(12);
+  const [sourceDeployment] = await db
+    .select()
+    .from(deployments)
+    .where(
+      and(
+        eq(deployments.id, sourceDeploymentId),
+        eq(deployments.projectId, project.id),
+      ),
+    )
+    .limit(1);
+
+  if (!sourceDeployment) {
+    return c.json({ error: "Deployment not found" }, 404);
+  }
+
+  const newDeploymentId = nanoid(12);
   const deploymentUrl = `${project.slug}.localhoststories.dev`;
   const envVars = (project.envVars as Record<string, string> | null) ?? {};
 
   await db.insert(deployments).values({
-    id: deploymentId,
+    id: newDeploymentId,
     projectId: project.id,
     url: deploymentUrl,
     status: "queued",
-    redeployOfId: project.currentDeploymentId,
-    commitMessage: project.lastCommitMessage,
-    commitHash: project.lastCommitHash,
-    commitAuthor: project.lastCommitAuthor,
-    branch: project.lastDeploymentBranch,
+    redeployOfId: sourceDeploymentId,
+    commitMessage: sourceDeployment.commitMessage,
+    commitHash: sourceDeployment.commitHash,
+    commitAuthor: sourceDeployment.commitAuthor,
+    branch: sourceDeployment.branch,
   });
 
   try {
     await startBuildTask({
       projectSlug: project.slug,
-      deploymentId,
+      deploymentId: newDeploymentId,
       repoUrl: project.repoUrl,
       envVars,
     });
@@ -229,7 +245,7 @@ projectsRouter.post("/:slug/deploy", async (c) => {
         status: "building",
         updatedAt: new Date(),
       })
-      .where(eq(deployments.id, deploymentId));
+      .where(eq(deployments.id, newDeploymentId));
   } catch (error) {
     await db
       .update(deployments)
@@ -239,13 +255,17 @@ projectsRouter.post("/:slug/deploy", async (c) => {
         finishedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(deployments.id, deploymentId));
+      .where(eq(deployments.id, newDeploymentId));
 
     console.error("Error running ECS task:", error);
     return c.json({ error: "Failed to start build" }, 500);
   }
 
-  return c.json({ deploymentId, projectSlug: project.slug });
+  return c.json({
+    deploymentId: newDeploymentId,
+    projectSlug: project.slug,
+    redeployOfId: sourceDeploymentId,
+  });
 });
 
 projectsRouter.get("/:slug/deployments", async (c) => {
