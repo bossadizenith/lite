@@ -68,6 +68,20 @@ export const deployments = pgTable("deployments", {
   healthCheckPath: varchar("health_check_path", { length: 255 }).default("/"),
   ipAddress: varchar("ip_address", { length: 255 }),
   errorMessage: varchar("error_message", { length: 1024 }),
+  commitMessage: text("commit_message"),
+  commitHash: varchar("commit_hash", { length: 255 }),
+  commitAuthor: varchar("commit_author", { length: 255 }),
+  branch: varchar("branch", { length: 255 }),
+  redeployOfId: varchar("redeploy_of_id", { length: 255 }),
+  logs: jsonb("logs").$type<
+    Array<{
+      id: string;
+      timestamp: number;
+      level: string;
+      message: string;
+      source?: string;
+    }>
+  >(),
   finishedAt: timestamp("finished_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
