@@ -1,9 +1,10 @@
 "use client";
 
-import { env } from "@lite/env/client";
+import { projectPreviewUrl } from "@/components/deployment-preview";
 import React from "react";
 import { PROJECTS_QUERY } from "@/lib/queries";
 import type { DeploymentMetadata, LogEvent } from "@/lib/types";
+import { env } from "@lite/env/client";
 import { cn } from "@lite/ui/lib/utils";
 import Ansi from "ansi-to-react";
 
@@ -14,7 +15,6 @@ type LogsProps = {
 };
 
 const API_BASE_URL = `${env.NEXT_PUBLIC_BACKEND_URL}/api`;
-const isDev = process.env.NODE_ENV === "development";
 
 export const Logs = ({
   projectSlug,
@@ -32,10 +32,7 @@ export const Logs = ({
   const isHealthy = deployment.status === "healthy";
   const isDeploying =
     deployment.status === "success" || deployment.status === "deploying";
-  const liveDemoHost = `${projectSlug}.localhoststories.dev`;
-  const liveDemoUrl = isDev
-    ? `http://${projectSlug}.localhost:8000`
-    : `https://${liveDemoHost}`;
+  const liveDemoUrl = projectPreviewUrl(projectSlug);
 
   React.useEffect(() => {
     if (ref.current) {
