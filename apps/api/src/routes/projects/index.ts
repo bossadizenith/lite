@@ -1,21 +1,19 @@
-import {
-  ECSClient,
-  RunTaskCommand,
-  DescribeTasksCommand,
-} from "@aws-sdk/client-ecs";
-import {
-  EC2Client,
-  DescribeNetworkInterfacesCommand,
-} from "@aws-sdk/client-ec2";
-import { deploymentStatusEnum, deployments, projects } from "@lite/db/schema";
-import { env } from "@lite/env/server.js";
+import { deployments, projects } from "@lite/db/schema";
 import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import { Hono } from "hono";
-import Redis from "ioredis";
 import { nanoid } from "nanoid";
 import { generateSlug } from "random-word-slugs";
 import z from "zod";
 import type { ReqVariables } from "../../utils/hono.js";
+import {
+  enrichDeploymentMetadata,
+  getDeploymentLogs,
+  parseLogEvents,
+  redis,
+  resolveDeploymentId,
+  startBuildTask,
+  syncDeploymentFromMetadata,
+} from "../../services/deployment-pipeline.js";
 
 const projectsRouter = new Hono<{ Variables: ReqVariables }>();
 
@@ -98,427 +96,6 @@ const projectBodySchema = z.object({
     .optional(),
 });
 
-const ecsClient = new ECSClient({
-  region: env.AWS_REGION,
-  credentials: {
-    accessKeyId: env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-  },
-});
-
-const ec2Client = new EC2Client({
-  region: env.AWS_REGION,
-  credentials: {
-    accessKeyId: env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-  },
-});
-
-const CONFIG = {
-  CLUSTER: env.ECS_CLUSTER_ARN,
-  TASK: env.ECS_TASK_DEFINITION_ARN,
-  RUNNER_TASK: env.RUNNER_ECS_TASK_DEFINITION_ARN,
-};
-
-const redis = new Redis(env.REDIS_URL);
-
-type LogEvent = {
-  id: string;
-  timestamp: number;
-  level: "info" | "error" | "success" | "warn";
-  message: string;
-  source?: "build" | "system";
-};
-
-type DeploymentDbStatus = (typeof deploymentStatusEnum.enumValues)[number];
-type DbClient = ReqVariables["db"];
-type DeploymentMetadata = Record<string, string>;
-const HEALTHCHECK_ATTEMPTS = 5;
-const HEALTHCHECK_DELAY_MS = 1500;
-
-function parseLogEvents(rawLogs: string[]): LogEvent[] {
-  return rawLogs.flatMap((rawLog) => {
-    try {
-      return [JSON.parse(rawLog) as LogEvent];
-    } catch {
-      return [];
-    }
-  });
-}
-
-function resolveRuntimePort(
-  deploymentType?: string,
-  framework?: string,
-): number {
-  if (framework === "vite" || deploymentType === "static") {
-    return 4173;
-  }
-  if (framework === "nextjs" || deploymentType === "container") {
-    return 3000;
-  }
-  return 5000;
-}
-
-function toDeploymentDbStatus(
-  metadataStatus?: string,
-): DeploymentDbStatus | null {
-  switch (metadataStatus) {
-    case "running":
-      return "building";
-    case "deploying":
-      return "deploying";
-    case "healthy":
-      return "healthy";
-    case "success":
-      return "built";
-    case "error":
-    case "failed":
-      return "failed";
-    default:
-      return null;
-  }
-}
-
-async function setDeploymentRedisStatus(
-  deploymentId: string,
-  fields: DeploymentMetadata,
-) {
-  await redis.hset(`deployment:${deploymentId}`, fields);
-}
-
-async function enrichDeploymentMetadata(
-  db: DbClient,
-  deploymentId: string,
-  metadata: DeploymentMetadata,
-): Promise<DeploymentMetadata> {
-  const [row] = await db
-    .select({ status: deployments.status })
-    .from(deployments)
-    .where(eq(deployments.id, deploymentId))
-    .limit(1);
-
-  const dbStatus = row?.status;
-  if (dbStatus === "healthy") {
-    return { ...metadata, status: "healthy" };
-  }
-  if (dbStatus === "deploying") {
-    return { ...metadata, status: "deploying" };
-  }
-  if (dbStatus === "failed") {
-    return { ...metadata, status: "failed" };
-  }
-
-  return metadata;
-}
-
-async function syncDeploymentFromMetadata(
-  db: DbClient,
-  deploymentId: string,
-  metadata: DeploymentMetadata,
-) {
-  const dbStatus = toDeploymentDbStatus(metadata.status);
-  if (!dbStatus) return;
-
-  const [deploymentRecord] = await db
-    .select({
-      projectId: deployments.projectId,
-      status: deployments.status,
-    })
-    .from(deployments)
-    .where(eq(deployments.id, deploymentId))
-    .limit(1);
-
-  if (!deploymentRecord) return;
-
-  const gitUpdate: Partial<{
-    lastCommitMessage: string;
-    lastCommitAuthor: string;
-    lastDeploymentBranch: string;
-    lastCommitHash: string;
-  }> = {};
-
-  if (metadata.lastCommitMessage) {
-    gitUpdate.lastCommitMessage = metadata.lastCommitMessage;
-  }
-  if (metadata.lastCommitAuthor) {
-    gitUpdate.lastCommitAuthor = metadata.lastCommitAuthor;
-  }
-  if (metadata.lastDeploymentBranch) {
-    gitUpdate.lastDeploymentBranch = metadata.lastDeploymentBranch;
-  }
-  if (metadata.lastCommitHash) {
-    gitUpdate.lastCommitHash = metadata.lastCommitHash;
-  }
-
-  if (Object.keys(gitUpdate).length > 0) {
-    await db
-      .update(projects)
-      .set({
-        ...gitUpdate,
-        updatedAt: new Date(),
-      })
-      .where(eq(projects.id, deploymentRecord.projectId));
-  }
-
-  if (
-    deploymentRecord.status === "deploying" ||
-    deploymentRecord.status === "healthy" ||
-    deploymentRecord.status === dbStatus
-  ) {
-    return;
-  }
-
-  const isTerminal =
-    dbStatus === "built" || dbStatus === "healthy" || dbStatus === "failed";
-
-  await db
-    .update(deployments)
-    .set({
-      status: dbStatus,
-      finishedAt: isTerminal ? new Date() : undefined,
-      errorMessage:
-        dbStatus === "failed"
-          ? metadata.errorMessage || metadata.message || "Build failed"
-          : undefined,
-      updatedAt: new Date(),
-    })
-    .where(eq(deployments.id, deploymentId));
-
-  if (dbStatus === "built" || dbStatus === "healthy") {
-    await db
-      .update(projects)
-      .set({
-        currentDeploymentId: deploymentId,
-        updatedAt: new Date(),
-      })
-      .where(eq(projects.id, deploymentRecord.projectId));
-  }
-
-  if (dbStatus === "built") {
-    const deploymentType =
-      metadata.deploymentType === "container" ? "container" : "static";
-
-    await db
-      .update(deployments)
-      .set({
-        type: deploymentType,
-        runtimePort: resolveRuntimePort(
-          metadata.deploymentType,
-          metadata.framework,
-        ),
-        imageUrl: metadata.imageUrl,
-        url: metadata.artifactUrl || deployments.url,
-      })
-      .where(eq(deployments.id, deploymentId));
-
-    void rolloutRuntimeDeployment(db, deploymentId);
-  }
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function isDeploymentHealthy(url: string) {
-  for (let i = 0; i < HEALTHCHECK_ATTEMPTS; i += 1) {
-    try {
-      console.log("time: ", i);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
-
-      let response = await fetch(`https://${url}`, {
-        signal: controller.signal,
-      }).catch(() => fetch(`http://${url}`, { signal: controller.signal }));
-
-      clearTimeout(timeout);
-
-      if (
-        response &&
-        (response.ok || response.status === 301 || response.status === 302)
-      ) {
-        return true;
-      }
-    } catch {
-      /* probe retries below */
-    }
-
-    await sleep(2000);
-  }
-
-  return false;
-}
-
-async function rolloutRuntimeDeployment(db: DbClient, deploymentId: string) {
-  const [resultRecord] = await db
-    .select({
-      deployment: deployments,
-      project: projects,
-    })
-    .from(deployments)
-    .innerJoin(projects, eq(projects.id, deployments.projectId))
-    .where(eq(deployments.id, deploymentId))
-    .limit(1);
-
-  const deployment = resultRecord?.deployment;
-  const project = resultRecord?.project;
-
-  if (!deployment || deployment.status !== "built") {
-    return;
-  }
-
-  await db
-    .update(deployments)
-    .set({
-      status: "deploying",
-      updatedAt: new Date(),
-    })
-    .where(eq(deployments.id, deploymentId));
-
-  await setDeploymentRedisStatus(deploymentId, { status: "deploying" });
-
-  // console.log(deployment);
-
-  try {
-    const command = new RunTaskCommand({
-      cluster: CONFIG.CLUSTER,
-      taskDefinition: CONFIG.RUNNER_TASK,
-      launchType: "FARGATE",
-      count: 1,
-      networkConfiguration: {
-        awsvpcConfiguration: {
-          assignPublicIp: "ENABLED",
-          subnets: [env.SUBNET_1, env.SUBNET_2, env.SUBNET_3],
-          securityGroups: [env.SECURITY_GROUP],
-        },
-      },
-      overrides: {
-        containerOverrides: [
-          {
-            name: "runner",
-            command: ["npm", "start"],
-            environment: [
-              { name: "ARTIFACT_URL", value: deployment.url },
-              { name: "AWS_ACCESS_KEY_ID", value: env.AWS_ACCESS_KEY_ID },
-              {
-                name: "AWS_SECRET_ACCESS_KEY",
-                value: env.AWS_SECRET_ACCESS_KEY,
-              },
-              { name: "AWS_REGION", value: env.AWS_REGION },
-              {
-                name: "PORT",
-                value: String(
-                  deployment.runtimePort ?? resolveRuntimePort(deployment.type),
-                ),
-              },
-              ...Object.entries(
-                (project.envVars as Record<string, string>) || {},
-              ).map(([name, value]) => ({
-                name,
-                value: String(value),
-              })),
-            ],
-          },
-        ],
-      },
-    });
-
-    const result = await ecsClient.send(command);
-    // console.log("ecs result: ", result);
-    const taskArn = result.tasks?.[0]?.taskArn;
-
-    if (!taskArn) {
-      throw new Error("Failed to start ECS task for runner");
-    }
-
-    let eniId = "";
-    for (let i = 0; i < 60; i++) {
-      await sleep(2000);
-      const describeTask = new DescribeTasksCommand({
-        cluster: CONFIG.CLUSTER,
-        tasks: [taskArn],
-      });
-      const taskDetails = await ecsClient.send(describeTask);
-      const taskInfo = taskDetails.tasks?.[0];
-
-      if (taskInfo?.lastStatus === "RUNNING") {
-        const eniDetail = taskInfo.attachments?.[0]?.details?.find(
-          (d) => d.name === "networkInterfaceId",
-        );
-        if (eniDetail && eniDetail.value) {
-          eniId = eniDetail.value;
-          break;
-        }
-      } else if (taskInfo?.lastStatus === "STOPPED") {
-        throw new Error("Task stopped before reaching RUNNING state");
-      }
-    }
-
-    if (!eniId) {
-      throw new Error("Failed to retrieve ENI for the running task");
-    }
-
-    // Now query EC2 for the Public IP
-    const describeNetwork = new DescribeNetworkInterfacesCommand({
-      NetworkInterfaceIds: [eniId],
-    });
-    const networkDetails = await ec2Client.send(describeNetwork);
-    const publicIp =
-      networkDetails.NetworkInterfaces?.[0]?.Association?.PublicIp;
-
-    if (!publicIp) {
-      throw new Error("Failed to retrieve Public IP for the ENI");
-    }
-
-    const port = deployment.runtimePort ?? resolveRuntimePort(deployment.type);
-    const ipUrl = `${publicIp}:${port}`;
-    console.log(`Pinging ECS Public IP: ${ipUrl}`);
-
-    const healthy = await isDeploymentHealthy(ipUrl);
-
-    if (!healthy) {
-      throw new Error("Runtime health check failed after rollout");
-    }
-
-    await db
-      .update(deployments)
-      .set({
-        status: "healthy",
-        ipAddress: publicIp,
-        finishedAt: new Date(),
-        updatedAt: new Date(),
-        taskDefinitionArn: taskArn,
-      })
-      .where(eq(deployments.id, deploymentId));
-
-    await db
-      .update(projects)
-      .set({
-        currentDeploymentId: deploymentId,
-        updatedAt: new Date(),
-      })
-      .where(eq(projects.id, deployment.projectId));
-
-    await setDeploymentRedisStatus(deploymentId, { status: "healthy" });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    await db
-      .update(deployments)
-      .set({
-        status: "failed",
-        errorMessage,
-        finishedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(deployments.id, deploymentId));
-
-    await setDeploymentRedisStatus(deploymentId, {
-      status: "failed",
-      errorMessage,
-    });
-  }
-}
-
 projectsRouter.post("/", async (c) => {
   const db = c.get("db");
   const reqBody = await c.req.json();
@@ -572,44 +149,13 @@ projectsRouter.post("/", async (c) => {
     status: "queued",
   });
 
-  const command = new RunTaskCommand({
-    cluster: CONFIG.CLUSTER,
-    taskDefinition: CONFIG.TASK,
-    launchType: "FARGATE",
-    count: 1,
-    networkConfiguration: {
-      awsvpcConfiguration: {
-        assignPublicIp: "ENABLED",
-        subnets: [env.SUBNET_1, env.SUBNET_2, env.SUBNET_3],
-        securityGroups: [env.SECURITY_GROUP],
-      },
-    },
-    overrides: {
-      containerOverrides: [
-        {
-          name: "builder-image",
-          environment: [
-            { name: "GIT_REPOSITORY_URL", value: repoUrl },
-            { name: "PROJECT_ID", value: finalSlug },
-            { name: "DEPLOYMENT_ID", value: deploymentId },
-            { name: "AWS_ACCESS_KEY_ID", value: env.AWS_ACCESS_KEY_ID },
-            { name: "AWS_SECRET_ACCESS_KEY", value: env.AWS_SECRET_ACCESS_KEY },
-            { name: "AWS_REGION", value: env.AWS_REGION },
-            { name: "REDIS_URL", value: env.REDIS_URL },
-            ...Object.entries(
-              (cleanupEnvVars as Record<string, string>) || {},
-            ).map(([name, value]) => ({
-              name,
-              value: String(value),
-            })),
-          ],
-        },
-      ],
-    },
-  });
-
   try {
-    await ecsClient.send(command);
+    await startBuildTask({
+      projectSlug: finalSlug,
+      deploymentId,
+      repoUrl,
+      envVars: cleanupEnvVars as Record<string, string>,
+    });
 
     await db
       .update(deployments)
@@ -636,6 +182,72 @@ projectsRouter.post("/", async (c) => {
   return c.json({ ...project, deploymentId });
 });
 
+projectsRouter.post("/:slug/deploy", async (c) => {
+  const db = c.get("db");
+  const session = c.get("session");
+  if (!session) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const slug = c.req.param("slug");
+
+  const project = await db.query.projects.findFirst({
+    where: and(eq(projects.slug, slug), eq(projects.userId, session.user.id)),
+  });
+
+  if (!project) {
+    return c.json({ error: "Project not found" }, 404);
+  }
+
+  const deploymentId = nanoid(12);
+  const deploymentUrl = `${project.slug}.localhoststories.dev`;
+  const envVars = (project.envVars as Record<string, string> | null) ?? {};
+
+  await db.insert(deployments).values({
+    id: deploymentId,
+    projectId: project.id,
+    url: deploymentUrl,
+    status: "queued",
+    redeployOfId: project.currentDeploymentId,
+    commitMessage: project.lastCommitMessage,
+    commitHash: project.lastCommitHash,
+    commitAuthor: project.lastCommitAuthor,
+    branch: project.lastDeploymentBranch,
+  });
+
+  try {
+    await startBuildTask({
+      projectSlug: project.slug,
+      deploymentId,
+      repoUrl: project.repoUrl,
+      envVars,
+    });
+
+    await db
+      .update(deployments)
+      .set({
+        status: "building",
+        updatedAt: new Date(),
+      })
+      .where(eq(deployments.id, deploymentId));
+  } catch (error) {
+    await db
+      .update(deployments)
+      .set({
+        status: "failed",
+        errorMessage: error instanceof Error ? error.message : String(error),
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(deployments.id, deploymentId));
+
+    console.error("Error running ECS task:", error);
+    return c.json({ error: "Failed to start build" }, 500);
+  }
+
+  return c.json({ deploymentId, projectSlug: project.slug });
+});
+
 projectsRouter.get("/:slug/deployments", async (c) => {
   const db = c.get("db");
   const slug = c.req.param("slug");
@@ -653,6 +265,12 @@ projectsRouter.get("/:slug/deployments", async (c) => {
       id: deployments.id,
       status: deployments.status,
       type: deployments.type,
+      url: deployments.url,
+      commitMessage: deployments.commitMessage,
+      commitHash: deployments.commitHash,
+      commitAuthor: deployments.commitAuthor,
+      branch: deployments.branch,
+      redeployOfId: deployments.redeployOfId,
       createdAt: deployments.createdAt,
       updatedAt: deployments.updatedAt,
       finishedAt: deployments.finishedAt,
@@ -667,6 +285,7 @@ projectsRouter.get("/:slug/deployments", async (c) => {
       id: project.id,
       slug: project.slug,
       name: project.name,
+      subDomain: project.subDomain,
       currentDeploymentId: project.currentDeploymentId,
     },
     deployments: rows.map((row) => ({
@@ -679,52 +298,27 @@ projectsRouter.get("/:slug/deployments", async (c) => {
 projectsRouter.get("/:deploymentId/logs", async (c) => {
   const db = c.get("db");
 
-  if (!redis) {
-    return c.json({ error: "Redis is not configured" }, 500);
+  const deploymentId = await resolveDeploymentId(
+    db,
+    c.req.param("deploymentId"),
+  );
+
+  if (!deploymentId) {
+    return c.json({ error: "Deployment not found" }, 404);
   }
 
-  const idParam = c.req.param("deploymentId");
-  let deploymentId = idParam;
-
-  const projectWithLatest = await db.query.projects.findFirst({
-    where: eq(projects.slug, idParam),
-  });
-
-  if (projectWithLatest) {
-    const [latest] = await db
-      .select()
-      .from(deployments)
-      .where(eq(deployments.projectId, projectWithLatest.id))
-      .orderBy(desc(deployments.createdAt))
-      .limit(1);
-
-    if (latest) {
-      deploymentId = latest.id;
-    }
-  }
-
-  const logsKey = `logs:${deploymentId}`;
   const deploymentKey = `deployment:${deploymentId}`;
-
-  console.log(
-    `[API DEBUG] Fetching logs for key: ${logsKey} (URL: ${env.REDIS_URL.split("@")[1] || "hidden"})`,
-  );
-
-  const [logs, metadata] = await Promise.all([
-    redis.lrange(logsKey, 0, -1),
-    redis.hgetall(deploymentKey),
-  ]);
-
-  console.log(
-    `[API DEBUG] Found ${logs.length} logs in Redis for ${deploymentId}`,
-  );
+  const metadata = await redis.hgetall(deploymentKey);
 
   await syncDeploymentFromMetadata(db, deploymentId, metadata);
 
-  const deployment = await enrichDeploymentMetadata(db, deploymentId, metadata);
+  const [logs, deployment] = await Promise.all([
+    getDeploymentLogs(db, deploymentId),
+    enrichDeploymentMetadata(db, deploymentId, metadata),
+  ]);
 
   return c.json({
-    logs: parseLogEvents(logs),
+    logs,
     deployment,
   });
 });
@@ -732,36 +326,14 @@ projectsRouter.get("/:deploymentId/logs", async (c) => {
 projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
   const db = c.get("db");
 
-  if (!redis) {
-    return c.json({ error: "Redis is not configured" }, 500);
-  }
-
-  console.log(
-    "[API DEBUG] Starting log stream for deployment",
+  const deploymentId = await resolveDeploymentId(
+    db,
     c.req.param("deploymentId"),
   );
 
-  const idParam = c.req.param("deploymentId");
-  let deploymentId = idParam;
-
-  const projectWithLatest = await db.query.projects.findFirst({
-    where: eq(projects.slug, idParam),
-  });
-
-  if (projectWithLatest) {
-    const [latest] = await db
-      .select()
-      .from(deployments)
-      .where(eq(deployments.projectId, projectWithLatest.id))
-      .orderBy(desc(deployments.createdAt))
-      .limit(1);
-
-    if (latest) {
-      deploymentId = latest.id;
-    }
+  if (!deploymentId) {
+    return c.json({ error: "Deployment not found" }, 404);
   }
-
-  console.log(deploymentId);
 
   const logsKey = `logs:${deploymentId}`;
   const deploymentKey = `deployment:${deploymentId}`;
@@ -805,20 +377,20 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
         }
 
         try {
-          const [logs, deployment] = await Promise.all([
+          const [rawLogs, deploymentMeta] = await Promise.all([
             redis.lrange(logsKey, 0, -1),
             redis.hgetall(deploymentKey),
           ]);
 
-          await syncDeploymentFromMetadata(db, deploymentId, deployment);
+          await syncDeploymentFromMetadata(db, deploymentId, deploymentMeta);
 
           const enrichedDeployment = await enrichDeploymentMetadata(
             db,
             deploymentId,
-            deployment,
+            deploymentMeta,
           );
 
-          const parsedLogs = parseLogEvents(logs);
+          const parsedLogs = parseLogEvents(rawLogs);
           for (const logEvent of parsedLogs) {
             if (sentLogIds.has(logEvent.id)) continue;
             sentLogIds.add(logEvent.id);
@@ -828,7 +400,7 @@ projectsRouter.get("/:deploymentId/logs/stream", async (c) => {
           send("deployment", enrichedDeployment);
 
           const terminalStatuses = ["error", "failed", "healthy"];
-          if (terminalStatuses.includes(enrichedDeployment?.status)) {
+          if (terminalStatuses.includes(enrichedDeployment?.status ?? "")) {
             send("done", { status: enrichedDeployment.status });
             markClosed();
             safelyCloseController();
