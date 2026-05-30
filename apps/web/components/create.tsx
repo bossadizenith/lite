@@ -18,9 +18,11 @@ import {
   Control,
   UseFormRegister,
 } from "react-hook-form";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export const Create = () => {
+  const router = useRouter();
   const [projectSlug, setProjectSlug] = React.useState<string | null>(null);
   const [selectedDeploymentId, setSelectedDeploymentId] = React.useState<
     string | undefined
@@ -41,6 +43,7 @@ export const Create = () => {
         queryKey: [QUERY_KEYS.DEPLOYMENTS, project.slug],
       });
       toast.success("Project created successfully");
+      router.push(`/${project.slug}/${project.deploymentId}`);
     },
     onError: () => {
       toast.error("Failed to create project");
