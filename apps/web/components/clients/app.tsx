@@ -1,5 +1,6 @@
 "use client";
 
+import { QUERY_KEYS } from "@/lib/consts";
 import { PROJECTS_QUERY } from "@/lib/queries";
 import { Button, buttonVariants } from "@lite/ui/components/button";
 import { Icons } from "@lite/ui/components/icons";
@@ -10,7 +11,6 @@ import Link from "next/link";
 import { debounce, parseAsInteger, parseAsString, useQueryState } from "nuqs";
 import { useDeferredValue } from "react";
 import { Header } from "../header";
-import { QUERY_KEYS } from "@/lib/consts";
 
 const PAGE_SIZE = 12;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -101,7 +101,7 @@ export const App = () => {
             {projects.map((project) => {
               const siteUrl = projectSiteUrl(project.subDomain);
               const projectHref = `/${project.slug}`;
-              const deploymentHref = `/${project.slug}/{}`;
+              const deploymentHref = `/${project.slug}/${project.currentDeploymentId}`;
 
               return (
                 <div
@@ -132,19 +132,27 @@ export const App = () => {
                       <MoreVertical />
                     </Button>
                   </div>
-                  <div className="bg-muted rounded-full p-1 w-fit max-w-full flex items-center gap-2 pr-2 z-10">
+                  <Link
+                    href={project.repoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bg-muted rounded-full p-1 w-fit max-w-full flex items-center gap-2 pr-2 z-10"
+                  >
                     <Icons.github className="size-4 shrink-0" />
                     <span className="text-xs truncate">
                       {formatRepoLabel(project.repoUrl)}
                     </span>
-                  </div>
+                  </Link>
                   <div className="z-10">
-                    <Link
-                      href={projectHref}
-                      className="text-sm hover:underline font-sans! line-clamp-2"
-                    >
-                      {project.lastCommitMessage || "No commit message"}
-                    </Link>
+                    {project.lastCommitMessage && (
+                      <Link
+                        href={deploymentHref}
+                        className="text-sm hover:underline font-sans! line-clamp-2"
+                      >
+                        {project.lastCommitMessage}
+                      </Link>
+                    )}
+                    <p className=""></p>
                   </div>
                   <Link
                     href={projectHref}
