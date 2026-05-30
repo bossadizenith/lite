@@ -7,6 +7,9 @@ import { handle } from "hono/vercel";
 import { routes } from "./routes/index.js";
 import type { ReqVariables } from "./utils/hono.js";
 import { auth } from "@lite/auth/auth";
+import { startDeploymentSyncWorker } from "./services/deployment-sync-worker.js";
+
+startDeploymentSyncWorker();
 
 const app = new Hono<{ Variables: ReqVariables }>();
 
