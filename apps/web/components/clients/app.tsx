@@ -7,12 +7,7 @@ import { Input } from "@lite/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import Link from "next/link";
-import {
-  debounce,
-  parseAsInteger,
-  parseAsString,
-  useQueryState,
-} from "nuqs";
+import { debounce, parseAsInteger, parseAsString, useQueryState } from "nuqs";
 import { useDeferredValue } from "react";
 import { Header } from "../header";
 import { QUERY_KEYS } from "@/lib/consts";
@@ -105,7 +100,8 @@ export const App = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {projects.map((project) => {
               const siteUrl = projectSiteUrl(project.subDomain);
-              const projectHref = `/projects/${project.slug}`;
+              const projectHref = `/${project.slug}`;
+              const deploymentHref = `/${project.slug}/{}`;
 
               return (
                 <div
@@ -147,7 +143,7 @@ export const App = () => {
                       href={projectHref}
                       className="text-sm hover:underline font-sans! line-clamp-2"
                     >
-                      View project
+                      {project.lastCommitMessage || "No commit message"}
                     </Link>
                   </div>
                   <Link

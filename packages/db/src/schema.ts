@@ -6,6 +6,7 @@ import {
   pgTable,
   timestamp,
   varchar,
+  text,
 } from "drizzle-orm/pg-core";
 import {
   account,
@@ -37,6 +38,10 @@ export const projects = pgTable("projects", {
   buildCommand: varchar("build_command", { length: 255 }).notNull(),
   subDomain: varchar("sub_domain", { length: 255 }).notNull(),
   customDomain: varchar("custom_domain", { length: 255 }).notNull(),
+  lastCommitMessage: text("last_commit_message"),
+  lastCommitHash: varchar("last_commit_hash", { length: 255 }),
+  lastCommitAuthor: varchar("last_commit_author", { length: 255 }),
+  lastDeploymentBranch: varchar("last_deployment_branch", { length: 255 }),
   currentDeploymentId: varchar("current_deployment_id", {
     length: 255,
   }),

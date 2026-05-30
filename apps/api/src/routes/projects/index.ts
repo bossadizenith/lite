@@ -219,17 +219,51 @@ async function syncDeploymentFromMetadata(
   const dbStatus = toDeploymentDbStatus(metadata.status);
   if (!dbStatus) return;
 
-  const [current] = await db
-    .select({ status: deployments.status })
+  const [deploymentRecord] = await db
+    .select({
+      projectId: deployments.projectId,
+      status: deployments.status,
+    })
     .from(deployments)
     .where(eq(deployments.id, deploymentId))
     .limit(1);
 
-  if (!current) return;
+  if (!deploymentRecord) return;
+
+  const gitUpdate: Partial<{
+    lastCommitMessage: string;
+    lastCommitAuthor: string;
+    lastDeploymentBranch: string;
+    lastCommitHash: string;
+  }> = {};
+
+  if (metadata.lastCommitMessage) {
+    gitUpdate.lastCommitMessage = metadata.lastCommitMessage;
+  }
+  if (metadata.lastCommitAuthor) {
+    gitUpdate.lastCommitAuthor = metadata.lastCommitAuthor;
+  }
+  if (metadata.lastDeploymentBranch) {
+    gitUpdate.lastDeploymentBranch = metadata.lastDeploymentBranch;
+  }
+  if (metadata.lastCommitHash) {
+    gitUpdate.lastCommitHash = metadata.lastCommitHash;
+  }
+
+  if (Object.keys(gitUpdate).length > 0) {
+    await db
+      .update(projects)
+      .set({
+        ...gitUpdate,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, deploymentRecord.projectId));
+  }
+
   if (
-    current.status === "deploying" ||
-    current.status === "healthy" ||
-    current.status === dbStatus
+    deploymentRecord.status === "deploying" ||
+    deploymentRecord.status === "healthy" ||
+    deploymentRecord.status === dbStatus
   ) {
     return;
   }
@@ -251,23 +285,13 @@ async function syncDeploymentFromMetadata(
     .where(eq(deployments.id, deploymentId));
 
   if (dbStatus === "built" || dbStatus === "healthy") {
-    const [deploymentRecord] = await db
-      .select({
-        projectId: deployments.projectId,
+    await db
+      .update(projects)
+      .set({
+        currentDeploymentId: deploymentId,
+        updatedAt: new Date(),
       })
-      .from(deployments)
-      .where(eq(deployments.id, deploymentId))
-      .limit(1);
-
-    if (deploymentRecord) {
-      await db
-        .update(projects)
-        .set({
-          currentDeploymentId: deploymentId,
-          updatedAt: new Date(),
-        })
-        .where(eq(projects.id, deploymentRecord.projectId));
-    }
+      .where(eq(projects.id, deploymentRecord.projectId));
   }
 
   if (dbStatus === "built") {

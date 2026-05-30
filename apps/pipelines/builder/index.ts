@@ -153,6 +153,16 @@ async function init() {
 
   await publishLog("Build started...");
   const outDirPath = path.join(__dirname, "output");
+  const git = await readGitMetadata(outDirPath);
+
+  if (redis) {
+    await redis.hset(DEPLOYMENT_KEY, {
+      lastCommitMessage: git.lastCommitMessage,
+      lastCommitAuthor: git.lastCommitAuthor,
+      lastDeploymentBranch: git.lastDeploymentBranch,
+      lastCommitHash: git.lastCommitHash,
+    });
+  }
 
   const results = await detectFramework(outDirPath);
   const framework: Framework = results.framework;
@@ -287,6 +297,35 @@ async function init() {
     await markDeploymentError();
     process.exit(1);
   }
+}
+
+async function readGitMetadata(rootDir: string) {
+  const run = async (cmd: string) => {
+    try {
+      const { stdout } = await execAsync(cmd, { cwd: rootDir });
+      return stdout.trim();
+    } catch {
+      return "";
+    }
+  };
+  const [
+    lastCommitMessage,
+    lastCommitAuthor,
+    lastDeploymentBranch,
+    lastCommitHash,
+  ] = await Promise.all([
+    run(`git log -1 --format='%s'`),
+    run(`git log -1 --format='%an'`),
+    run(`git branch --show-current`),
+    run(`git rev-parse HEAD`),
+  ]);
+
+  return {
+    lastCommitMessage,
+    lastCommitAuthor,
+    lastDeploymentBranch,
+    lastCommitHash,
+  };
 }
 
 init().catch(async (err) => {

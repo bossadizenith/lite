@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "last_commit_hash" varchar(255);
