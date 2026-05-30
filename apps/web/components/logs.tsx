@@ -12,6 +12,7 @@ type LogsProps = {
   projectSlug: string;
   deploymentId?: string;
   onDeploymentFinished?: () => void;
+  embedded?: boolean;
 };
 
 const API_BASE_URL = `${env.NEXT_PUBLIC_BACKEND_URL}/api`;
@@ -20,6 +21,7 @@ export const Logs = ({
   projectSlug,
   deploymentId,
   onDeploymentFinished,
+  embedded = false,
 }: LogsProps) => {
   const logsTarget = deploymentId ?? projectSlug;
   const [logs, setLogs] = React.useState<LogEvent[]>([]);
@@ -125,21 +127,14 @@ export const Logs = ({
     };
   }, [logsTarget]);
 
-  return (
-    <div className="w-full max-w-3xl min-w-0 overflow-hidden rounded-md border">
-      <div className="flex items-center justify-between p-4">
-        <h2 className="text-lg font-semibold">Build logs</h2>
-        <div className="text-sm text-muted-foreground">
-          status: {deployment.status ?? "pending"} |{" "}
-          {isConnected ? "live" : "reconnecting"}
-        </div>
-      </div>
-      {isDeploying && !isHealthy ? (
+  const logBody = (
+    <>
+      {!embedded && isDeploying && !isHealthy ? (
         <p className="m-4 mt-0 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
           Build finished. Starting runtime and waiting for health check…
         </p>
       ) : null}
-      {isHealthy ? (
+      {!embedded && isHealthy ? (
         <p className="m-4 mt-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
           Deployed live demo is on{" "}
           <a
@@ -152,7 +147,12 @@ export const Logs = ({
           </a>
         </p>
       ) : null}
-      <div className="max-h-[380px] min-w-0 overflow-auto rounded bg-background font-mono text-sm pb-4">
+      <div
+        className={cn(
+          "min-w-0 overflow-auto bg-background font-mono text-sm",
+          embedded ? "max-h-[420px] px-4 pb-4 pt-2" : "max-h-[380px] rounded pb-4",
+        )}
+      >
         {logs.length === 0 ? (
           <p className="p-4 pt-0 text-zinc-400">No logs yet...</p>
         ) : (
@@ -182,6 +182,32 @@ export const Logs = ({
         )}
         <div ref={ref} />
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="w-full min-w-0">
+        <div className="flex items-center justify-end gap-2 border-b border-border/60 px-4 py-2 text-xs text-muted-foreground">
+          <span>status: {deployment.status ?? "pending"}</span>
+          <span>·</span>
+          <span>{isConnected ? "live" : "reconnecting"}</span>
+        </div>
+        {logBody}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-3xl min-w-0 overflow-hidden rounded-md border">
+      <div className="flex items-center justify-between p-4">
+        <h2 className="text-lg font-semibold">Build logs</h2>
+        <div className="text-sm text-muted-foreground">
+          status: {deployment.status ?? "pending"} |{" "}
+          {isConnected ? "live" : "reconnecting"}
+        </div>
+      </div>
+      {logBody}
     </div>
   );
 };
